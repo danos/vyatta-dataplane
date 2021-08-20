@@ -61,7 +61,7 @@
  * @code
  * void foo (ptr_t *ptr)
  * {
- *     bstr_t sb;
+ *     struct bstr sb;
  *
  *     bstr_init(&sb, 200);
  *     bstr_addstr(&sb, "Literal cstring text, ");
@@ -80,7 +80,7 @@
  * {
  * #define MY_SIZE_BUF 200
  *     char buf[MY_SIZE_BUF];
- *     bstr_t sb = BSTR_INIT;
+ *     struct bstr sb = BSTR_INIT;
  *
  *     bstr_attach_unmanaged(&sb, buf, 0, sizeof buf);
  *     bstr_add(&sb, "Foo", sizeof "Foo" - 1);
@@ -143,13 +143,6 @@
 #include <stdarg.h>
 
 /**
- * Type definition for the string buffer types for use in function prototypes.
- *
- * @opaque_struct
- */
-typedef struct bstr_t_ bstr_t;
-
-/**
  * Adjust to control maximum capacity of strings.
  */
 #define BSTR_SMALL 0
@@ -163,13 +156,13 @@ typedef struct bstr_t_ bstr_t;
  * The buf pointer is always expected to be non-NULL.
  */
 #if BSTR_SMALL
-struct bstr_t_ {
+struct bstr {
 	uint8_t *buf;
 	int16_t len;
 	uint16_t allocated;
 };
 #else
-struct bstr_t_ {
+struct bstr {
 	uint8_t *buf;
 	int32_t len;
 	uint32_t allocated;
@@ -184,7 +177,7 @@ extern uint8_t bstr_empty[];
 /*
  * Initialisation value a bstr variable.
  */
-#define BSTR_INIT (struct bstr_t_){bstr_empty, 0, 0}
+#define BSTR_INIT (struct bstr){bstr_empty, 0, 0}
 
 /*
  * Useful for constants in array / structure definitions.
@@ -202,8 +195,8 @@ extern uint8_t bstr_empty[];
  * a quoted string.
  */
 #define BSTRL_GCC(str) ({static const uint8_t _bc[] = (str); \
-			static const bstr_t _bb = BSTR_K(_bc); &_bb; })
-#define BSTRL_STANDARD(str) (&(const bstr_t)BSTR_K(str))
+			static const struct bstr _bb = BSTR_K(_bc); &_bb; })
+#define BSTRL_STANDARD(str) (&(const struct bstr)BSTR_K(str))
 
 /* A Literal string */
 #ifdef __GNUC__
@@ -217,32 +210,32 @@ extern uint8_t bstr_empty[];
  */
 
 /* Initialise to empty string, with initial capacity for length */
-bool bstr_init(bstr_t *bs, int length_hint);
+bool bstr_init(struct bstr *bs, int length_hint);
 
 /* Free any existing backing store, and reinitialise to empty string */
-void bstr_release(bstr_t *bs);
+void bstr_release(struct bstr *bs);
 
 /* Extract backing buffer and length from a passed in string */
-void *bstr_detach(bstr_t *bs, int *length, bool *managed);
+void *bstr_detach(struct bstr *bs, int *length, bool *managed);
 
 /* Attach a malloc'ed backing buffer to a dynamic string. Freed by bstr_release() */
-bool bstr_attach_managed(bstr_t *bs, void *str, int str_len, int alloc);
+bool bstr_attach_managed(struct bstr *bs, void *str, int str_len, int alloc);
 
 /* Attach a backing buffer to a static string. Caller responsible for freeing */
-bool bstr_attach_unmanaged(bstr_t *bs, void *str, int str_len, int alloc);
+bool bstr_attach_unmanaged(struct bstr *bs, void *str, int str_len, int alloc);
 
 /*
  * length related
  */
 
 /* How much available (unused) space does a string have */
-int bstr_avail(bstr_t *bs);
+int bstr_avail(struct bstr *bs);
 
 /* Ensure that a string has space for extra bytes; if dynamic possibly reallocate backing buffer */
-bool bstr_grow(bstr_t *bs, int extra);
+bool bstr_grow(struct bstr *bs, int extra);
 
 /* Set the length of the string, not altering its contents, but terminating at the length */
-bool bstr_setlen(bstr_t *bs, int len);
+bool bstr_setlen(struct bstr *bs, int len);
 
 /* Set the string to zero length */
 #define bstr_reset(sb) bstr_setlen(sb, 0)
@@ -252,32 +245,32 @@ bool bstr_setlen(bstr_t *bs, int len);
  */
 
 /* Add a single byte to the end */
-bool bstr_addch(bstr_t *bs, uint8_t c);
+bool bstr_addch(struct bstr *bs, uint8_t c);
 
 /* Add str_len bytes pointed to by str */
-bool bstr_add(bstr_t *bs, void const *str, int str_len);
+bool bstr_add(struct bstr *bs, void const *str, int str_len);
 
 /* Add bytes from a NULL terminated c-string to a string (c.f. strcat) */
-bool bstr_addstr(bstr_t *bs, char const *cstr);
+bool bstr_addstr(struct bstr *bs, char const *cstr);
 
 /* Add bytes from one string to end of another (c.f. strcat) */
-bool bstr_addbuf(bstr_t *bs, bstr_t const *bs2);
+bool bstr_addbuf(struct bstr *bs, struct bstr const *bs2);
 
 /* Add formatted bytes to a string (c.f. snprint) */
-bool bstr_addf(bstr_t *bs, char const *fmt, ...)
+bool bstr_addf(struct bstr *bs, char const *fmt, ...)
 	__attribute__((format(__printf__, 2, 3)));
 
 /* Are the two strings identical */
-bool bstr_eq(bstr_t const *bs1, bstr_t const *bs2);
+bool bstr_eq(struct bstr const *bs1, struct bstr const *bs2);
 
 /* Does the text start with the provided prefix */
-bool bstr_prefix(bstr_t const *text, bstr_t const *prefix);
+bool bstr_prefix(struct bstr const *text, struct bstr const *prefix);
 
 /* Find offset of first occurrence of a needle in a haystack (c.f. strstr) */
-int bstr_find(bstr_t const *hs, bstr_t const *nd);
+int bstr_find(struct bstr const *hs, struct bstr const *nd);
 
 /* Does the string start with this character */
-static inline bool bstr_first_eq(bstr_t const *bs, uint8_t val)
+static inline bool bstr_first_eq(struct bstr const *bs, uint8_t val)
 {
 	if (!bs->len)
 		return false;
@@ -285,7 +278,7 @@ static inline bool bstr_first_eq(bstr_t const *bs, uint8_t val)
 }
 
 /* Does the string end with this character */
-static inline bool bstr_last_eq(bstr_t const *bs, uint8_t val)
+static inline bool bstr_last_eq(struct bstr const *bs, uint8_t val)
 {
 	if (!bs->len)
 		return false;
@@ -293,7 +286,7 @@ static inline bool bstr_last_eq(bstr_t const *bs, uint8_t val)
 }
 
 /* Drop bytes from the end */
-static inline bool bstr_drop_right(bstr_t *bs, uint32_t n)
+static inline bool bstr_drop_right(struct bstr *bs, uint32_t n)
 {
 	if ((uint32_t)bs->len < n)
 		return false;
@@ -302,7 +295,7 @@ static inline bool bstr_drop_right(bstr_t *bs, uint32_t n)
 }
 
 /* Drop bytes from start of unmanaged buffer */
-static inline bool bstr_un_drop_left(bstr_t *bs, uint32_t n)
+static inline bool bstr_un_drop_left(struct bstr *bs, uint32_t n)
 {
 	if ((uint32_t)bs->len < n)
 		return false;
@@ -318,22 +311,27 @@ static inline bool bstr_un_drop_left(bstr_t *bs, uint32_t n)
  */
 
 /* Initialise two sub-strings (slices) over the parent; head being len bytes, tail the rest */
-bool bstr_split_length(bstr_t const *parent, uint32_t len, bstr_t *headp, bstr_t *tailp);
+bool bstr_split_length(struct bstr const *parent, uint32_t len,
+		       struct bstr *headp, struct bstr *tailp);
 
 /* Create unmanaged splits across 'parent', head end at terminator */
 
 /* Initialise two sub-strings (slices) over the parent at the matching terminator, if found */
-bool bstr_split_term(bstr_t const *parent, uint8_t terminator, bstr_t *headp, bstr_t *tailp);
+bool bstr_split_term(struct bstr const *parent, uint8_t terminator,
+		     struct bstr *headp, struct bstr *tailp);
 
 /* bstr_split_term() for the first matching terminator */
-bool bstr_split_terms(bstr_t const *parent, bstr_t const *terminators, bstr_t *headp, bstr_t *tailp);
+bool bstr_split_terms(struct bstr const *parent, struct bstr const *terminators,
+		      struct bstr *headp, struct bstr *tailp);
 
 /* Create unmanaged splits across 'parent', tail start after last preceeder */
 
 /* Akin to strrchr() - split_term() from end of string */
-bool bstr_split_prec(bstr_t const *parent, uint8_t preceder, bstr_t *headp, bstr_t *tailp);
+bool bstr_split_prec(struct bstr const *parent, uint8_t preceder,
+		     struct bstr *headp, struct bstr *tailp);
 
 /* Akin to strtok() backwards; split_terms() from end of string */
-bool bstr_split_precs(bstr_t const *parent, bstr_t const *preceders, bstr_t *headp, bstr_t *tailp);
+bool bstr_split_precs(struct bstr const *parent, struct bstr const *preceders,
+		      struct bstr *headp, struct bstr *tailp);
 
 #endif /* BSTR_H */

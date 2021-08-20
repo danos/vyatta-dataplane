@@ -41,13 +41,13 @@
  */
 uint8_t bstr_empty[1];
 
-static void bstr_zinit(bstr_t *bs)
+static void bstr_zinit(struct bstr *bs)
 {
 	bs->allocated = bs->len = 0;
 	bs->buf = bstr_empty;
 }
 
-bool bstr_init(bstr_t *bs, int length_hint)
+bool bstr_init(struct bstr *bs, int length_hint)
 {
 	bool rc;
 
@@ -58,7 +58,7 @@ bool bstr_init(bstr_t *bs, int length_hint)
 	return rc;
 }
 
-void bstr_release(bstr_t *bs)
+void bstr_release(struct bstr *bs)
 {
 	if (bs->allocated & BSTR_MANAGED_BIT)
 		free(bs->buf);
@@ -66,7 +66,7 @@ void bstr_release(bstr_t *bs)
 	bstr_zinit(bs);
 }
 
-void *bstr_detach(bstr_t *bs, int *length, bool *managed)
+void *bstr_detach(struct bstr *bs, int *length, bool *managed)
 {
 	uint8_t *cstr;
 
@@ -82,7 +82,7 @@ void *bstr_detach(bstr_t *bs, int *length, bool *managed)
 	return cstr;
 }
 
-static bool bstr_attach_internal(bstr_t *bs, void *str, int str_len, int allocated)
+static bool bstr_attach_internal(struct bstr *bs, void *str, int str_len, int allocated)
 {
 	bstr_release(bs);
 	bs->buf = str;
@@ -102,7 +102,7 @@ static bool bstr_attach_internal(bstr_t *bs, void *str, int str_len, int allocat
 	 str_len > BSTR_MAX_LEN || allocated > BSTR_MAX_ALLOCATED || \
 	 str_len < 0 || allocated < 1 || !str)
 
-bool bstr_attach_managed(bstr_t *bs, void *str, int str_len, int allocated)
+bool bstr_attach_managed(struct bstr *bs, void *str, int str_len, int allocated)
 {
 	if (ATTACH_INVALID)
 		return false;
@@ -110,7 +110,7 @@ bool bstr_attach_managed(bstr_t *bs, void *str, int str_len, int allocated)
 	return bstr_attach_internal(bs, str, str_len, allocated | BSTR_MANAGED_BIT);
 }
 
-bool bstr_attach_unmanaged(bstr_t *bs, void *str, int str_len, int allocated)
+bool bstr_attach_unmanaged(struct bstr *bs, void *str, int str_len, int allocated)
 {
 	if (ATTACH_INVALID)
 		return false;
@@ -118,7 +118,7 @@ bool bstr_attach_unmanaged(bstr_t *bs, void *str, int str_len, int allocated)
 	return bstr_attach_internal(bs, str, str_len, allocated);
 }
 
-int bstr_avail(bstr_t *bs)
+int bstr_avail(struct bstr *bs)
 {
 	int allocated;
 
@@ -130,7 +130,7 @@ int bstr_avail(bstr_t *bs)
 	return (allocated - 1 - bs->len);
 }
 
-bool bstr_grow(bstr_t *bs, int extra)
+bool bstr_grow(struct bstr *bs, int extra)
 {
 	uint8_t *new_str;
 	int target, allocated;
@@ -166,7 +166,7 @@ bool bstr_grow(bstr_t *bs, int extra)
 	return true;
 }
 
-bool bstr_setlen(bstr_t *bs, int len)
+bool bstr_setlen(struct bstr *bs, int len)
 {
 	if (len > BSTR_MAX_LEN)
 		return false;
@@ -183,7 +183,7 @@ bool bstr_setlen(bstr_t *bs, int len)
 	return true;
 }
 
-bool bstr_addch(struct bstr_t_ *bs, uint8_t c)
+bool bstr_addch(struct bstr *bs, uint8_t c)
 {
 	if (!bstr_grow(bs, 1))
 		return false;
@@ -194,7 +194,7 @@ bool bstr_addch(struct bstr_t_ *bs, uint8_t c)
 	return true;
 }
 
-bool bstr_add(bstr_t *bs, void const *str, int str_len)
+bool bstr_add(struct bstr *bs, void const *str, int str_len)
 {
 	if (!str_len)
 		return true;
@@ -206,17 +206,17 @@ bool bstr_add(bstr_t *bs, void const *str, int str_len)
 	return bstr_setlen(bs, bs->len + str_len);
 }
 
-bool bstr_addstr(bstr_t *bs, char const *cstr)
+bool bstr_addstr(struct bstr *bs, char const *cstr)
 {
 	return bstr_add(bs, cstr, strlen(cstr));
 }
 
-bool bstr_addbuf(bstr_t *bs, bstr_t const *bs2)
+bool bstr_addbuf(struct bstr *bs, struct bstr const *bs2)
 {
 	return bstr_add(bs, bs2->buf, bs2->len);
 }
 
-bool bstr_addf(bstr_t *bs, char const *fmt, ...)
+bool bstr_addf(struct bstr *bs, char const *fmt, ...)
 {
 	va_list ap;
 	char *cp;
@@ -255,7 +255,7 @@ bool bstr_addf(bstr_t *bs, char const *fmt, ...)
 	return (bstr_setlen(bs, bs->len + len));
 }
 
-bool bstr_eq(bstr_t const *bs1, bstr_t const *bs2)
+bool bstr_eq(struct bstr const *bs1, struct bstr const *bs2)
 {
 	if (bs1->len != bs2->len)
 		return false;
@@ -263,7 +263,7 @@ bool bstr_eq(bstr_t const *bs1, bstr_t const *bs2)
 	return (memcmp(bs1->buf, bs2->buf, bs1->len) == 0);
 }
 
-bool bstr_prefix(bstr_t const *text, bstr_t const *prefix)
+bool bstr_prefix(struct bstr const *text, struct bstr const *prefix)
 {
 	if (text->len < prefix->len)
 		return false;
@@ -271,7 +271,8 @@ bool bstr_prefix(bstr_t const *text, bstr_t const *prefix)
 	return (memcmp(text->buf, prefix->buf, prefix->len) == 0);
 }
 
-bool bstr_split_length(bstr_t const *parent, uint32_t len, bstr_t *headp, bstr_t *tailp)
+bool bstr_split_length(struct bstr const *parent, uint32_t len,
+		       struct bstr *headp, struct bstr *tailp)
 {
 	uint32_t plen = parent->len;
 	uint8_t *pbuf = parent->buf;
@@ -296,7 +297,8 @@ bool bstr_split_length(bstr_t const *parent, uint32_t len, bstr_t *headp, bstr_t
 	return true;
 }
 
-bool bstr_split_term(bstr_t const *parent, uint8_t terminator, bstr_t *headp, bstr_t *tailp)
+bool bstr_split_term(struct bstr const *parent, uint8_t terminator,
+		     struct bstr *headp, struct bstr *tailp)
 {
 	if (!parent->len) {
 		return false;
@@ -311,7 +313,8 @@ bool bstr_split_term(bstr_t const *parent, uint8_t terminator, bstr_t *headp, bs
 	return bstr_split_length(parent, index + 1, headp, tailp);
 }
 
-bool bstr_split_prec(bstr_t const *parent, uint8_t preceder, bstr_t *headp, bstr_t *tailp)
+bool bstr_split_prec(struct bstr const *parent, uint8_t preceder,
+		     struct bstr *headp, struct bstr *tailp)
 {
 	if (!parent->len)
 		return false;
@@ -325,7 +328,8 @@ bool bstr_split_prec(bstr_t const *parent, uint8_t preceder, bstr_t *headp, bstr
 	return bstr_split_length(parent, index + 1, headp, tailp);
 }
 
-bool bstr_split_terms(bstr_t const *parent, bstr_t const *terms, bstr_t *headp, bstr_t *tailp)
+bool bstr_split_terms(struct bstr const *parent, struct bstr const *terms,
+		      struct bstr *headp, struct bstr *tailp)
 {
 	if (!parent->len || !terms->len)
 		return false;
@@ -349,7 +353,8 @@ found:
 	return bstr_split_length(parent, pi + 1, headp, tailp);
 }
 
-bool bstr_split_precs(bstr_t const *parent, bstr_t const *precs, bstr_t *headp, bstr_t *tailp)
+bool bstr_split_precs(struct bstr const *parent, struct bstr const *precs,
+		      struct bstr *headp, struct bstr *tailp)
 {
 	if (!parent->len || !precs->len)
 		return false;
@@ -373,7 +378,7 @@ found:
 	return bstr_split_length(parent, pi + 1, headp, tailp);
 }
 
-int bstr_find(bstr_t const *hs, bstr_t const *nd)
+int bstr_find(struct bstr const *hs, struct bstr const *nd)
 {
 	/* Empty needle always matches */
 	if (!nd->len)
