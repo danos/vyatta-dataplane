@@ -256,7 +256,9 @@ pipeline {
                                             script: "scripts/codechecks upstream/${env.CHANGE_TARGET} origin/${env.BRANCH_NAME}")
                                 if (checks != "") {
                                     prComment(checks)
-                                    error "Codechecks failed"
+                                    // Force the stage to fail
+                                    // without generating a hudson.AbortException.
+                                    sh "exit 1"
                                 }
                             }
                         }
