@@ -1,3 +1,33 @@
+vyatta-dataplane (3.14.12) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * Add new codechecks script
+  * Add SPDX license to Jenkinsfile
+  * Jenkinsfile: use SRC_DIR
+  * Add codechecks to Jenkinsfile
+
+  [ ck407g ]
+  * Changes for activation delay to start after the boot sfpd scan
+
+  [ Thomas Kiely ]
+  * Revert "Jumbo MTU capability omitted"
+
+  [ Daniel Gollub ]
+  * config: introduce control_cpumask parsing
+  * dp_control_thread: introduce control-thread API
+  * npf-rte-acl: register acl-opt as control-thread
+
+  [ Srinivas Narayan ]
+  * 3.13.39
+
+  [ kalaivani vinothkumar ]
+  * coverity: SFP buffer not null terminated
+
+  [ Srinivas Narayan ]
+  * 3.13.40
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 20 Aug 2021 17:25:24 +0100
+
 vyatta-dataplane (3.14.11) unstable; urgency=medium
 
   [ kalaivani vinothkumar ]
