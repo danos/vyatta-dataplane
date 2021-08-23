@@ -256,4 +256,4 @@ static inline void _dp_test_fail_unless(bool condition, const char *file,
 #define dp_test_fail_unless(cond, fmt, ...) \
 	_dp_test_fail_unless(cond, __FILE__, __LINE__, fmt, ## __VA_ARGS__)
 
-#endif /*__DP_TEST_MACROS_H__ */
+#endif /* DP_TEST_MACROS_H */

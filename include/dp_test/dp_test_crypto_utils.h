@@ -338,4 +338,4 @@ void dp_test_s2s_common_setup(struct dp_test_s2s_config *conf);
 
 void dp_test_s2s_common_teardown(struct dp_test_s2s_config *conf);
 
-#endif /*_DP_TEST_CRYPTO_UTILS_H_ */
+#endif /* DP_TEST_CRYPTO_UTILS_H */

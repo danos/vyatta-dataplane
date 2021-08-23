@@ -63,4 +63,4 @@ void dp_test_verify_vrf_stats(int inp, int inp2, int dis, int dis2,
 			      int del, int del2, int exp_status);
 
 
-#endif /* _DP_TEST_CRYPTO_LIB_H_ */
+#endif /* DP_TEST_CRYPTO_LIB_H */

@@ -342,4 +342,4 @@ void dp_test_lib_pb_set_ip_addr(IPAddress *addr, const char *str, void *data);
  */
 void dp_test_tcase_mark(bool begin, const char *name);
 
-#endif /*_DP_TEST_LIB_H_ */
+#endif /* DP_TEST_LIB_H */
