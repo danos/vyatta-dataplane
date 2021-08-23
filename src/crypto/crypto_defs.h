@@ -38,4 +38,4 @@ enum {
 #define RTE_CRYPTO_CIPHER_LIST_END INT_MAX
 #define RTE_CRYPTO_AEAD_LIST_END INT_MAX
 
-#endif
+#endif /* CRYPTO_DEFS_H */

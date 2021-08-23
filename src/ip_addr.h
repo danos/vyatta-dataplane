@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -55,4 +55,4 @@ static inline uint32_t prefixlen_to_mask(uint8_t prefixlen)
 	return htonl(prefixlen == 32 ? 0xffffffff : ~(0xffffffff >> prefixlen));
 }
 
-#endif
+#endif /* IP_ADDR_H */

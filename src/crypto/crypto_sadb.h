@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -70,4 +70,5 @@ void crypto_incmpl_sa_make_complete(void);
 bool crypto_sadb_get_stats(vrfid_t vrf_id, xfrm_address_t addr,
 			   uint16_t family, uint32_t spi,
 			   struct crypto_sadb_stats *sa);
+
 #endif /* CRYPTO_SADB_H */

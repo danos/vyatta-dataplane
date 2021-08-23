@@ -12,4 +12,4 @@
 void twamp_init(void);
 void twamp_shutdown(void);
 
-#endif
+#endif /* TWAMP_H */

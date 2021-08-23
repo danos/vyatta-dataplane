@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -192,4 +192,5 @@ bool ip_l2_resolve(struct ifnet *in_ifp, struct rte_mbuf *m,
 
 bool ip_validate_packet_and_count(struct rte_mbuf *m, const struct iphdr *ip,
 				  struct ifnet *ifp, bool *needs_slow_path);
-#endif /* _IP_FUNC_H_ */
+
+#endif /* IP_FUNCS_H */

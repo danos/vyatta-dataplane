@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -11,4 +11,4 @@
 #define DATAPLANE_PROGNAME "Dataplane"
 #define DATAPLANE_VERSION PACKAGE_VERSION
 
-#endif
+#endif /* VERSION_H */

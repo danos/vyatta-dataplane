@@ -113,4 +113,4 @@ void crypto_gc_timer_handler(struct rte_timer *tmr,
 /* Invoked from rcu callback to signal unbind of SA from PMD */
 void crypto_sa_unbind_rcu(int dev_id);
 
-#endif /* _CRYPTO_MAIN_H_ */
+#endif /* CRYPTO_MAIN_H */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -174,4 +174,5 @@ int l2tp_ipv6_recv_encap(struct rte_mbuf *m, const struct ip6_hdr *ip6,
 			const unsigned char *l2tp);
 int l2tp_undo_decap(const struct ifnet *ifp, struct rte_mbuf *m);
 int l2tp_undo_decap_br(const struct ifnet *brif, struct rte_mbuf *m);
+
 #endif /* L2TPETH_H */

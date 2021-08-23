@@ -1,6 +1,6 @@
 /* pppoe.h
  *
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -89,4 +89,5 @@ void ppp_remove_ses(uint32_t ifindex, uint16_t session);
 bool pppoe_init_session(struct ifnet *ppp_dev, uint16_t session);
 struct cds_list_head *pppoe_get_conn_list(void);
 void pppoe_track_underlying_interfaces(void);
+
 #endif /* PPPOE_H */

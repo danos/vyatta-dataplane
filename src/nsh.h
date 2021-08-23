@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -205,4 +205,5 @@ struct nsh_tlv {
  * Parse hdr, return payload proto and pointer to payload */
 int nsh_get_payload(struct nsh *nsh_start, enum nsh_np *nxtproto,
 		    void **nsh_payload);
-#endif
+
+#endif /* NSH_H */

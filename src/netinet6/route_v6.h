@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -88,4 +88,4 @@ uint32_t *route6_sw_stats_get(void);
 uint32_t *route6_hw_stats_get(void);
 int route6_get_pd_subset_data(json_writer_t *json, enum pd_obj_state subset);
 
-#endif
+#endif /* ROUTE_V6_H */

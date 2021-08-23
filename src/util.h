@@ -197,4 +197,4 @@ void renice(int value);
 uint32_t system_uptime(void);
 char *sstrncpy(char *dest, const char *src, size_t dest_size);
 
-#endif  /* UTIL_H */
+#endif /* UTIL_H */

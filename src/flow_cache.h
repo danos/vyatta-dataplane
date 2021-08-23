@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2020, AT&T Intellectual Property.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -210,4 +210,4 @@ void flow_cache_dump(struct flow_cache *cache, json_writer_t *wr,
  */
 void flow_cache_destroy(struct flow_cache *cache);
 
-#endif
+#endif /* FLOW_CACHE_H */

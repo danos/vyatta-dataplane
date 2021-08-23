@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -108,4 +108,5 @@ enum qos_obj_db_status qos_obj_db_walk(int (*walk_callback)
 					enum qos_obj_db_level level,
 					uint32_t *ids),
 				       void *context);
+
 #endif /* QOS_OBJ_DB_H */

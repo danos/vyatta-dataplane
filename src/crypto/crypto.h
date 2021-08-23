@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -96,4 +96,5 @@ uint8_t crypto_sa_alloc_fwd_core(void);
 void crypto_sa_free_fwd_core(uint8_t fwd_core);
 int crypto_set_fwd_cores(const uint8_t *bytes, uint8_t len);
 void crypto_flush_all(void);
+
 #endif /* CRYPTO_H */

@@ -12,4 +12,5 @@ npf_decision_t npf_out_track_fw(struct pl_packet *pkt);
 npf_decision_t npf_out_track_snat(struct ifnet *in_ifp, struct rte_mbuf **m,
 				       struct npf_if *nif, uint16_t *npf_flags);
 npf_decision_t npf_out_track_v6_fw(struct pl_packet *pkt);
-#endif /* NPF_OUT */
+
+#endif /* NPF_OUT_H */

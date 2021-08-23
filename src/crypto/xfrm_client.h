@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -31,4 +31,5 @@ int xfrm_client_send_sa_stats(uint32_t seq, uint32_t spi,
 			      struct crypto_sadb_stats *stats);
 int xfrm_client_send_expire(xfrm_address_t *dst, uint16_t family, uint32_t spi,
 			    uint32_t reqid, uint8_t proto, uint8_t hard);
+
 #endif /* XFRM_CLIENT_H */

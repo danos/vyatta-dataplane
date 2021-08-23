@@ -1,7 +1,7 @@
 #ifndef _IF_FEAT_H_
 #define _IF_FEAT_H_
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -101,4 +101,4 @@ void if_feat_all_refcnt_decr(enum if_feat_flag ffl);
  */
 const char *if_feat_name(enum if_feat_enum feat);
 
-#endif
+#endif /* IF_FEAT_H */

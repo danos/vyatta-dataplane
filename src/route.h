@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -112,4 +112,5 @@ int rt_show_platform_routes(const struct fal_ip_address_t *pfx,
 			    uint32_t attr_count,
 			    const struct fal_attribute_t *attr_list,
 			    void *arg);
-#endif
+
+#endif /* ROUTE_H */

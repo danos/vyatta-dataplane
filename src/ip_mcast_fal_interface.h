@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -12,4 +12,4 @@ int ip_mcast_fal_int_disable(struct vif *vifp, struct cds_lfht *viftable);
 int ip6_mcast_fal_int_enable(struct mif6 *mifp, struct cds_lfht *mif6table);
 int ip6_mcast_fal_int_disable(struct mif6 *mifp, struct cds_lfht *mif6table);
 
-#endif
+#endif /* IP_MCAST_FAL_INTERFACE_H */

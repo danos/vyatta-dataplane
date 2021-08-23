@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -59,4 +59,4 @@ int zmsg_send_and_destroy(zmsg_t **msg, void *dest);
  */
 int zactor_terminated(zloop_t *loop, zsock_t *sock, void *arg);
 
-#endif
+#endif /* ZMQ_DP_H */

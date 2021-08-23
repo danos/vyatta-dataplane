@@ -61,4 +61,4 @@ uint32_t twamp_hash_ipv6(vrfid_t vrfid, const struct ip6_hdr *ip6,
 int twamp_input_ipv6(struct rte_mbuf *m, void *l3hdr,
 		     struct udphdr *udp, struct ifnet *ifp);
 
-#endif
+#endif /* TWAMP_INTERNAL_H */

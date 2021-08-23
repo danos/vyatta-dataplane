@@ -68,4 +68,5 @@ struct icmp_ratelimit_state {
 	bool		limiting;			/* is rate limiting configured */
 	bool		explicit;			/* limiting is explicit, not default */
 };
-#endif
+
+#endif /* IP_ICMP_H */

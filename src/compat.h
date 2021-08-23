@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ *  Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *  Copyright (c) 2011-2015 by Brocade Communications Systems, Inc.
  *  All rights reserved.
  *
@@ -63,4 +63,5 @@ typedef uint16_t portid_t;
 #ifndef PKT_RX_VLAN
 #define PKT_RX_VLAN PKT_RX_VLAN_PKT
 #endif
-#endif
+
+#endif /* COMPAT_H */

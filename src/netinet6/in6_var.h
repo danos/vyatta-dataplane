@@ -28,7 +28,7 @@
  */
 
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 1985, 1986, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -122,4 +122,4 @@ struct if_addr *in6ifa_ifpforlinklocal(const struct ifnet *ifp);
 void in6_prefixlen2mask(struct in6_addr *maskp, uint len);
 int ip6_forwarding_enabled(const struct ifnet *ifp);
 
-#endif /* _IN6_VAR_H_ */
+#endif /* IN6_VAR_H */

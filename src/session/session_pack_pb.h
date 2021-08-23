@@ -17,4 +17,4 @@ int session_restore_counters_pb(struct session *s, DPSessionCounterMsg *scm);
 struct session *session_restore_pb(DPSessionMsg *dpsm, struct ifnet *ifp,
 				   uint8_t protocol);
 
-#endif
+#endif /* SESSION_PACK_PB_H */

@@ -175,4 +175,5 @@ struct ifnet *bridge_cmd_get_port(FILE *f, struct ifnet *bridge,
 				  const char *port_name);
 int bridge_vlan_clear_software_stat(struct bridge_softc *sc,
 				    uint16_t vlan);
-#endif
+
+#endif /* BRIDGE_H */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -42,4 +42,4 @@ macvlan_get_vrrp_if(const struct ifnet *ifp,
 void macvlan_output(struct ifnet *ifp, struct rte_mbuf *mbuf,
 		    struct ifnet *input_ifp, uint16_t proto);
 
-#endif
+#endif /* MACVLAN_H */
