@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -92,4 +92,4 @@ dp_test_exp_set_dont_care(struct dp_test_expected *exp, unsigned int pak_i,
 bool
 dp_test_exp_care(struct dp_test_expected *exp, unsigned int check, unsigned int offset);
 
-#endif /* _DP_TEST_LIB_EXP_H_ */
+#endif /* DP_TEST_LIB_EXP_H */

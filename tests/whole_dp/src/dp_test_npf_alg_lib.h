@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -37,4 +37,4 @@ _dp_test_npf_alg_tuple_verify(uint npf_id, const char *alg, uint8_t proto,
 void
 dp_test_npf_print_alg_tuples(const char *desc);
 
-#endif
+#endif /* DP_TEST_NPF_ALG_LIB_H */

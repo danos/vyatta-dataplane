@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -147,4 +147,4 @@ void dp_test_make_nh_usable_other_thread(pthread_t *nh_unusable_thread,
 uint32_t dp_test_sys_uptime(void);
 void dp_test_sys_uptime_inc(uint32_t inc);
 
-#endif /*_DP_TEST_LIB_H_ */
+#endif /* DP_TEST_LIB_INTERNAL_H */

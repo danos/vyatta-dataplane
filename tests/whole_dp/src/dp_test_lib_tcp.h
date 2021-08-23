@@ -154,4 +154,4 @@ void _dpt_tcp_call(struct dpt_tcp_flow *call, struct dpt_tcp_flow_pkt *df_array,
 #define dpt_tcp_call(a, b, c, d, e, f, g)			\
 	_dpt_tcp_call(a, b, c, d, e, f, g, __FILE__, __LINE__)
 
-#endif /* _DP_TEST_LIB_TCP_H_ */
+#endif /* DP_TEST_LIB_TCP_H */

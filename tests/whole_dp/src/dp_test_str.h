@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -76,4 +76,4 @@ dp_test_str_split(const char *target, int *countp);
 void
 dp_test_str_split_free(char **arr, int count);
 
-#endif
+#endif /* DP_TEST_STR_H */

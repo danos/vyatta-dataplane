@@ -241,4 +241,4 @@ int dp_test_pak_get_from_ring(const char *if_name,
 			      struct rte_mbuf **bufs,
 			      int count);
 
-#endif /* _DP_TEST_LIB_INTF_INTERNAL_H_ */
+#endif /* DP_TEST_LIB_INTF_INTERNAL_H */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017,2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017,2019-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -73,4 +73,4 @@ void sfpd_send_msg(void *data, size_t size, const char *hdr);
 extern bool from_external;
 extern char dp_ut_dummyfs_dir[PATH_MAX];
 
-#endif /* _DP_TEST_H_ */
+#endif /* DP_TEST_H */

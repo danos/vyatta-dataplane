@@ -334,4 +334,4 @@ int dpt_session_counters(const char *options,
  */
 void dpt_show_sessions2(const char *options);
 
-#endif
+#endif /* DP_TEST_NPF_SESS_LIB_H */

@@ -415,4 +415,4 @@ const char *npf_decision_str(npf_decision_t decision);
 
 void cgn_alg_show_sessions(void);
 
-#endif
+#endif /* DP_TEST_NPF_LIB_H */

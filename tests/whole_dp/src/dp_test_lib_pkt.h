@@ -1,6 +1,6 @@
 /**
  *
- * Copyright (c) 2017,2019-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017,2019-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -266,4 +266,4 @@ _dp_test_reverse_exp_from_desc(struct rte_mbuf *mbuf,
 #define dp_test_reverse_exp_from_desc(mbuf, pdesc)			\
 	_dp_test_reverse_exp_from_desc(mbuf, pdesc, __FILE__, __LINE__)
 
-#endif
+#endif /* DP_TEST_LIB_PKT_H */

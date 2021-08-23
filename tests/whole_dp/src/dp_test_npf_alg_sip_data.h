@@ -65,4 +65,4 @@ void _sipd_check_content_len(const char *desc, const char **arr, int sz,
 #define sipd_check_content_len(a, b, c)				\
 	_sipd_check_content_len(a, b, c, __FILE__, __LINE__)
 
-#endif /* __DP_TEST_NPF_ALG_SIP_DATA_H__ */
+#endif /* DP_TEST_NPF_ALG_SIP_DATA_H */

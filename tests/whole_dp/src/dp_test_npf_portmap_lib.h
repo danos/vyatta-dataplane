@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -47,4 +47,4 @@ _dp_test_npf_portmap_port_verify(const char *prot, const char *addr,
 	_dp_test_npf_portmap_port_verify(prot, addr, port, false, __FILE__, \
 					__LINE__)
 
-#endif /* __DP_TEST_NPF_PORTMAP_LIB_H__ */
+#endif /* DP_TEST_NPF_PORTMAP_LIB_H */
