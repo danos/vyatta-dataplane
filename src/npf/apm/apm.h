@@ -243,4 +243,4 @@ void apm_gc_pass(void);
 void apm_init(void);
 void apm_uninit(void);
 
-#endif
+#endif /* APM_H */

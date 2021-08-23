@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021 AT&T Intellectual Property.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -71,4 +71,4 @@ int npf_match_classify(enum npf_ruleset_type rs_type,
 int npf_match_destroy(enum npf_ruleset_type rs_type,
 		      int af, npf_match_ctx_t **ctx);
 
-#endif
+#endif /* NPF_MATCH_H */

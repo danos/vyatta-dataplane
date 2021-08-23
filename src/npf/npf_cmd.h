@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -39,4 +39,4 @@ int npf_extract_class_and_group(char *word, enum npf_rule_class *group_class,
 
 int cmd_show_rulesets(FILE *f, int argc, char **argv);
 
-#endif
+#endif /* NPF_CMD_H */

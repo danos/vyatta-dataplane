@@ -105,4 +105,4 @@ void sip_alg_apt_delete(struct apt_tuple *nt);
 int sip_alg_config(struct npf_alg *sip, enum alg_config_op op, int argc,
 		   char *const argv[]);
 
-#endif
+#endif /* ALG_SIP_H */

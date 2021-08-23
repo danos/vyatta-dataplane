@@ -302,4 +302,4 @@ void np_threshold_set_all(int32_t threshold, uint32_t interval);
 void np_threshold_get(struct nat_pool *np);
 void np_threshold_put(struct nat_pool *np);
 
-#endif
+#endif /* NAT_POOL_H */

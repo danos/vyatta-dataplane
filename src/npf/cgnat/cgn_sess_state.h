@@ -302,4 +302,4 @@ const char *cgn_sess_state_str_short(struct cgn_state *st);
 
 void cgn_sess_state_jsonw(json_writer_t *json, struct cgn_state *st);
 
-#endif /* _CGN_SESS_STATE_H_ */
+#endif /* CGN_SESS_STATE_H */

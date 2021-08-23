@@ -89,4 +89,4 @@ uint8_t *ptree_get_key(struct ptree_node *n);
 uint8_t  ptree_get_keylen(struct ptree_node *n);
 uint8_t  ptree_get_mask(struct ptree_node *n);
 
-#endif
+#endif /* NPF_PTREE_H */

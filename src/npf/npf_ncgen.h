@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -80,4 +80,5 @@ void npf_ncgen_matchdscp(nc_ctx_t *ctx, uint64_t matchdscpset);
 void npf_gennc_etherpcp(nc_ctx_t *ctx, uint8_t pcp);
 void npf_gennc_ethertype(nc_ctx_t *ctx, uint16_t etype);
 void npf_gennc_rproc(nc_ctx_t *ctx, const char *rproc);
-#endif /* _NPF_NCGEN_H_ */
+
+#endif /* NPF_NCGEN_H */

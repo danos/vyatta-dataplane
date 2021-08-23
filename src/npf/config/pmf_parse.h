@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -31,4 +31,4 @@ int pkp_parse_rule_line(char const *rule_line, struct pmf_rule **prule,
 int pkp_parse_rproc_line(char const *rproc_line, struct pmf_rule **prule,
 			struct pkp_unused **remaining);
 
-#endif /* _PMF_PARSE_H_ */
+#endif /* PMF_PARSE_H */

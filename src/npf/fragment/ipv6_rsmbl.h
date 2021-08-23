@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -24,4 +24,4 @@ struct rte_mbuf;
 
 struct rte_mbuf *ipv6_handle_fragment(struct rte_mbuf *, uint16_t *npf_flag);
 
-#endif
+#endif /* IPV6_RSMBL_H */

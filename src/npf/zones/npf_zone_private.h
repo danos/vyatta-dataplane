@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -48,4 +48,4 @@ void npf_zone_show_private(json_writer_t *json, const char *zone,
 
 void npf_zone_inst_destroy_private(void);
 
-#endif
+#endif /* NPF_ZONE_PRIVATE_H */

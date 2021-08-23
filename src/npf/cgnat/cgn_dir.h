@@ -34,4 +34,4 @@ static inline const char *cgn_dir_str(enum cgn_dir dir)
 	return "???";
 }
 
-#endif /* _CGN_DIR_H_ */
+#endif /* CGN_DIR_H */

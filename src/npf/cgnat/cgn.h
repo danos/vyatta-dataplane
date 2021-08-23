@@ -54,4 +54,4 @@ extern rte_atomic32_t cgn_sess2_used;
 /* Is CGNAT helper core enabled? */
 extern uint8_t cgn_helper_thread_enabled;
 
-#endif
+#endif /* CGN_H */

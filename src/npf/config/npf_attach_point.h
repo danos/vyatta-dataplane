@@ -468,4 +468,4 @@ void *npf_attpt_rlset_get_extend(const struct npf_attpt_rlset *ars);
 bool npf_attpt_group_set_extend(struct npf_attpt_group *rsg, void *extend);
 void *npf_attpt_group_get_extend(const struct npf_attpt_group *handle);
 
-#endif /*  NPF_ATTACH_POINT_H */
+#endif /* NPF_ATTACH_POINT_H */

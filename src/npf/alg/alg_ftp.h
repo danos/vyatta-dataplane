@@ -72,4 +72,4 @@ bool ftp_alg_cntl_session(struct npf_session_alg *sa);
 int ftp_alg_config(struct npf_alg *ftp, enum alg_config_op op, int argc,
 		   char *const argv[]);
 
-#endif
+#endif /* ALG_FTP_H */

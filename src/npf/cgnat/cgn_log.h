@@ -180,4 +180,4 @@ struct cgn_log_fns {
 	union cgn_log_type_fns logfn[CGN_LOG_TYPE_COUNT];
 };
 
-#endif /* _CGN_LOG_H_ */
+#endif /* CGN_LOG_H */

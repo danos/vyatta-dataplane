@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -105,4 +105,4 @@ ipv6_frag_find_or_create(struct vrf *vrf, const struct ipv6_frag_key *);
 void ipv6_frag_free(struct cds_lfht *frag_table, struct ipv6_frag_pkt *);
 void ipv6_frag_clear(struct ipv6_frag_pkt *);
 
-#endif
+#endif /* IPV6_RSMBL_TBL_H */

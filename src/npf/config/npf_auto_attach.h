@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -82,4 +82,5 @@ int npf_cfg_auto_attach_rule_add(enum npf_rule_class group_class,
 int npf_cfg_auto_attach_rule_delete(enum npf_rule_class group_class,
 				    const char *group, uint32_t index,
 				    const char *rule);
+
 #endif /* NPF_AUTO_ATTACH_H */

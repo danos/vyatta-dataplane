@@ -31,4 +31,4 @@ struct cgn_sess_fltr;
 
 void cgn_ut_show_sessions(char **buf, size_t *bufsz, struct cgn_sess_fltr *fltr);
 
-#endif
+#endif /* CGN_TEST_H */

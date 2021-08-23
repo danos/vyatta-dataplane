@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2016-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -52,4 +52,4 @@ int npf_cfg_build_ruleset(npf_ruleset_t **dp_ruleset,
 void npf_replace_ruleset(npf_ruleset_t **dp_ruleset,
 			 npf_ruleset_t *new_dp_ruleset);
 
-#endif
+#endif /* NPF_GEN_RULESET_H */

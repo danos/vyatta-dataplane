@@ -22,4 +22,4 @@ struct rte_mbuf *cgn_copy_or_clone_and_undo(struct rte_mbuf *mbuf,
 					    const struct ifnet *out_if,
 					    bool copy);
 
-#endif
+#endif /* CGN_PUBLIC_H */

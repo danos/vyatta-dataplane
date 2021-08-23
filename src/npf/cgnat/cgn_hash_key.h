@@ -50,4 +50,4 @@ struct cgn_2tuple_key {
 static_assert(sizeof(struct cgn_2tuple_key) == 8,
 	      "Expected struct cgn_2tuple_key size to be 8 bytes");
 
-#endif /* _CGN_HASH_KEY_H_ */
+#endif /* CGN_HASH_KEY_H */

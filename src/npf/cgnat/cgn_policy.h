@@ -175,4 +175,4 @@ void cgn_policy_clear(int argc, char **argv);
 void cgn_policy_init(void);
 void cgn_policy_uninit(void);
 
-#endif
+#endif /* CGN_POLICY_H */

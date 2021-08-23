@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -80,4 +80,4 @@ static_assert(CGN_DEST_SESSIONS_MAX < USHRT_MAX,
 
 #define CGN_SRC_TABLE_MAX	CGN_SOURCE_HT_MAX
 
-#endif
+#endif /* CGN_LIMITS_H */

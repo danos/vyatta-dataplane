@@ -124,4 +124,4 @@ int cgn_set_helper_thread(unsigned int core_num);
 int cgn_disable_helper_thread(void);
 int cgn_helper_thread_func(unsigned int core_num, void *arg);
 
-#endif /* _CGN_SESSION_H_ */
+#endif /* CGN_SESSION_H */

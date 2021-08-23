@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -166,4 +166,4 @@ int rldb_destroy(struct rldb_db_handle *db);
  */
 int rldb_cleanup(void);
 
-#endif /* NPF_RULE_DB_H */
+#endif /* RLDB_H */

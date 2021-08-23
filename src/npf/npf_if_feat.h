@@ -1,7 +1,7 @@
 #ifndef _NPF_IF_FEAT_H_
 #define _NPF_IF_FEAT_H_
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -11,4 +11,4 @@
  */
 void npf_if_feat_init(void);
 
-#endif
+#endif /* NPF_IF_FEAT_H */

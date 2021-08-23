@@ -337,4 +337,4 @@ static inline const char *cgn_rc_detail_str(int error)
 	return "Unknown";
 }
 
-#endif
+#endif /* CGN_RC_H */

@@ -342,4 +342,4 @@ const char *npf_rc_str(int rc);
 int npf_show_rc_counts(FILE *f, int argc, char **argv);
 int npf_clear_rc_counts(FILE *f, int argc, char **argv);
 
-#endif	/* _NPF_RC_H_ */
+#endif /* NPF_RC_H */

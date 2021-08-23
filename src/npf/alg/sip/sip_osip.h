@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -29,4 +29,4 @@
 #include <osipparser2/osip_uri.h>
 #include <osipparser2/sdp_message.h>
 
-#endif /* _SIP_OSIP_H_ */
+#endif /* SIP_OSIP_H */

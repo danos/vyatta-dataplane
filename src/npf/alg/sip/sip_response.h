@@ -33,4 +33,4 @@ int sip_manage_response(npf_session_t *se, npf_cache_t *npc,
 			struct sip_alg_request *sr,
 			struct sip_alg_request *tsr, npf_nat_t *nat);
 
-#endif
+#endif /* SIP_RESPONSE_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2018,2020, AT&T Intellectual Property.
+ * Copyright (c) 2017-2018,2020-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * Copyright (c) 2021 Centre for Development of Telematics. All rights reserved.
@@ -420,4 +420,4 @@ uint32_t dpi_refcount_dec(uint8_t engine_id);
  */
 bool dpi_flow_pkt_count_maxed(struct dpi_flow *dpi_flow, uint32_t max);
 
-#endif /* DPI_H */
+#endif /* DPI_INTERNAL_H */

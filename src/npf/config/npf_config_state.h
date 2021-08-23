@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -17,4 +17,4 @@
  */
 int npf_show_ruleset_state(FILE *fp, struct ruleset_select *sel);
 
-#endif /* _NPF_CONFIG_STATE_H_ */
+#endif /* NPF_CONFIG_STATE_H */

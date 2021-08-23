@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -53,4 +53,4 @@ void nat_pool_event(enum np_evt evt, struct nat_pool *np);
 /* Register event ops */
 bool nat_pool_event_register(const struct np_event_ops *ops);
 
-#endif /* _NAT_POOL_EVENT_H_ */
+#endif /* NAT_POOL_EVENT_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -120,4 +120,4 @@ uint32_t npf_get_ruleset_type_log_level(enum npf_ruleset_type type);
  */
 const char *npf_get_ruleset_type_log_name(enum npf_ruleset_type type);
 
-#endif /* _NPF_RULE_SET_TYPE_H_ */
+#endif /* NPF_RULESET_TYPE_H */

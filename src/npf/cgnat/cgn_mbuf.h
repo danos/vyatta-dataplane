@@ -321,4 +321,4 @@ static inline char *cgn_payload(struct cgn_packet *cpk, struct rte_mbuf *mbuf)
 		cpk->cpk_l4_len;
 }
 
-#endif /* _CGN_MBUF_H_ */
+#endif /* CGN_MBUF_H */

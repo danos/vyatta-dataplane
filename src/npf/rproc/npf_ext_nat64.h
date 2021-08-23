@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -75,4 +75,4 @@ struct nat64 {
 
 #define N64_LOG_SESSIONS 0x01
 
-#endif
+#endif /* NPF_EXT_NAT64_H */

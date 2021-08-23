@@ -127,4 +127,4 @@ int npf_alg_cfg(FILE *f, int argc, char **argv);
 void npf_alg_dump(FILE *fp, vrfid_t vrfid);
 const char *npf_alg_name(struct npf_session *se);
 
-#endif /* End of _ALG_NPF_H_ */
+#endif /* ALG_NPF_H */
