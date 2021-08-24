@@ -12,6 +12,8 @@
 #include "npf/cgnat/cgn_session.h"
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/alg/alg_rc.h"
+#include "npf/cgnat/alg/sip/csip_defs.h"
+#include "npf/cgnat/alg/sip/csip_parse_sip.h"
 #include "npf/cgnat/alg/sip/csip_parse_utils.h"
 #include "npf/bstr.h"
 
@@ -97,5 +99,50 @@ DP_START_TEST(sip1, test)
 	ok = csip_get_hline(&line8, &head, &tail);
 	dp_test_fail_unless(ok && head.len == 21 && tail.len == 0,
 			    "Failed to find EOL in line8 \"%s\"", line8.buf);
+
+} DP_END_TEST;
+
+/*
+ * sip2. Tests parsing the SIP message start-line
+ */
+DP_DECL_TEST_CASE(cgn_sip, sip2, NULL, NULL);
+DP_START_TEST(sip2, test)
+{
+	enum csip_req req = SIP_REQ_NONE;
+	uint resp_code = 0;
+	struct bstr sl = BSTR_INIT;
+	bool ok;
+	int rc;
+
+	/* Request start-line #1 */
+
+	ok = bstr_addbuf(&sl, BSTRL("INVITE sip:I.Wilson@192.0.2.1 SIP/2.0\r\n"));
+	dp_test_fail_unless(ok, "Failed to copy request start-line #1");
+
+	rc = csip_parse_start_line(&sl, &req, &resp_code);
+	dp_test_fail_unless(rc == 0, "Failed to parse \"%s\"", sl.buf);
+	dp_test_fail_unless(req == SIP_REQ_INVITE,
+			    "Failed to identify Invite");
+	bstr_release(&sl);
+
+	/* Request start-line #2 */
+
+	ok = bstr_addbuf(&sl, BSTRL("INVITE sip:I.Wilson@192.0.2.1 SIP/1.0\r\n"));
+	dp_test_fail_unless(ok, "Failed to copy request start-line #2");
+
+	rc = csip_parse_start_line(&sl, &req, &resp_code);
+	dp_test_fail_unless(rc == -ALG_ERR_SIP_UNSP,
+			    "Failed to detect wrong unsupported version");
+	bstr_release(&sl);
+
+	/* Response start-line #1 */
+
+	/* Does not need to write to the buffer */
+	struct bstr const *slp = BSTRL("SIP/2.0 200 OK\r\n");
+
+	rc = csip_parse_start_line(slp, &req, &resp_code);
+	dp_test_fail_unless(rc == 0, "Failed to parse \"%s\"", slp->buf);
+	dp_test_fail_unless(resp_code == 200,
+			    "Failed to identify Response code");
 
 } DP_END_TEST;

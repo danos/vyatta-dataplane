@@ -102,3 +102,18 @@ start:
 
 	return true;
 }
+
+/*
+ * Split off a line ending in CRLF.  This does not allow for continued lines.
+ */
+bool csip_get_line(struct bstr const *parent, struct bstr *headp, struct bstr *tailp)
+{
+	if (!bstr_split_term(parent, '\n', headp, tailp))
+		return false;
+
+	/* Did we find '\r\n'? */
+	if (!bstr_penultimate_eq(headp, '\r'))
+		return false;
+
+	return true;
+}

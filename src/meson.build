@@ -214,6 +214,7 @@ npf_sources = files(
         'npf/cgnat/alg/alg_pptp.c',
         'npf/cgnat/alg/alg_rc.c',
         'npf/cgnat/alg/alg_session.c',
+        'npf/cgnat/alg/sip/csip_parse_sip.c',
         'npf/cgnat/alg/sip/csip_parse_utils.c',
         'npf/config/gpc_acl_cli.c',
         'npf/config/gpc_cntr.c',
