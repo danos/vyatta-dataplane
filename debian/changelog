@@ -1,3 +1,16 @@
+vyatta-dataplane (3.13.42) unstable; urgency=medium
+
+  [ Charles (Chas) Williams ]
+  * pktmbuf: use nearest NUMA pool for control packets (Bugfix: VRVDR-55966)
+  * Detect accelerated netvsc DPDK ports (Bugfix: VRVDR-55967)
+
+  [ Daniel Gollub ]
+  * shadow: apply crypto on all egress slow-path traffic
+  * shadow: reduce the crypto lookup overhead
+  * crypto: adjust L3 packet length for IPv4 slow-path traffic
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 24 Aug 2021 18:46:23 +0100
+
 vyatta-dataplane (3.13.41) unstable; urgency=medium
 
   [ Paul Aitken ]
