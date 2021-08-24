@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: LGPL-2.1-only
 //
-// SFP permit list config definitions
+// SFP monitoring configuration and state messages
 //
 
 syntax="proto2";
@@ -11,6 +11,33 @@ option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/SFPmonitor";
 
 message SfpMonitorCfg {
 	optional uint32 interval = 1;
+}
+
+message SFPStatusList {
+	// a sequence of bytes read from the SFP EEPROM
+	message EEPROMData {
+		// EEPROM offset at which the data begins
+		optional uint32 offset = 1;
+
+		// number of bytes in this chunk
+		optional uint32 length = 2;
+
+		optional bytes data = 3;
+	}
+
+	message SFP {
+		// name of interface
+		optional string name = 1;
+
+		// type of SFP - SFP, QSFP+, QSFP etc
+		optional string type = 2;
+
+		// chunks of data
+		repeated EEPROMData data = 3;
+	}
+
+	// sequence of messages - one per SFP
+	repeated SFP sfp = 1;
 }
 
 message SfpPermitConfig {
