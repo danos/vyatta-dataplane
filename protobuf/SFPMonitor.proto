@@ -43,8 +43,6 @@ message SfpPermitConfig {
 		optional Logging logging = 2 [default = DISABLE];
 
 		optional Enforcement enforcement = 3 [default = MONITOR];
-
-		optional uint32 delay = 4 [default = 900];
 	}
 
 	message ListConfig {

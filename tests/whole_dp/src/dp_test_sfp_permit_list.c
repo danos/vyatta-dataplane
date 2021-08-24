@@ -77,7 +77,7 @@ _sfp_permit_match_check(const char *match_str, bool match,
 				_match_, __FILE__, __LINE__)
 
 static void
-_show_sfp_permit_mismatch_info(bool enforcement, bool logging, uint32_t delay,
+_show_sfp_permit_mismatch_info(bool enforcement, bool logging,
 		const char *file, int line)
 {
 	json_object *jexp;
@@ -92,13 +92,10 @@ _show_sfp_permit_mismatch_info(bool enforcement, bool logging, uint32_t delay,
 				"\"%s\","
 				"\"enforcement enabled\":"
 				"\"%s\","
-				"\"enforcement delay\":"
-				"%u"
 			"}"
 		"}",
 		enforcement ? "True" : "False",
-		logging ? "True" : "False",
-		delay
+		logging ? "True" : "False"
 		);
 
 	_dp_test_check_json_poll_state(cmd_str, jexp, NULL,
@@ -108,8 +105,8 @@ _show_sfp_permit_mismatch_info(bool enforcement, bool logging, uint32_t delay,
 	json_object_put(jexp);
 }
 
-#define show_sfp_permit_mismatch_info(enforcement, logging, delay)				\
-	_show_sfp_permit_mismatch_info(enforcement, logging, delay, \
+#define show_sfp_permit_mismatch_info(enforcement, logging)				\
+	_show_sfp_permit_mismatch_info(enforcement, logging, \
 				__FILE__, __LINE__)
 
 static void
@@ -204,8 +201,8 @@ _show_sfp_permit_list_info(const char *list_name, uint32_t index,
 
 static void
 _show_sfp_permit_list_device(const char *intf_name, bool enforcement,
-		uint32_t activation_delay_left, const char *part_id, uint32_t time,
-		bool approved, bool disabled, bool present, const char *file, int line)
+		const char *part_id, uint32_t time, bool approved, bool disabled,
+		bool present, const char *file, int line)
 {
 	json_object *jexp;
 	char cmd_str[50];
@@ -221,7 +218,6 @@ _show_sfp_permit_list_device(const char *intf_name, bool enforcement,
 			"{"
 			"\"sfp-permit-list-devices\":"
 			"{\"enforcement-mode\":%s,"
-			"\"activation-delay-left\":%d,"
 			"\"devices\": ["
 			"{"
 			"\"intf_name\":"
@@ -242,7 +238,6 @@ _show_sfp_permit_list_device(const char *intf_name, bool enforcement,
 			"%s}"
 			"]"
 			"} }", enforcement ? "true" : "false",
-			activation_delay_left,
 			intf_name, part_id, time,
 			approved ? "true" : "false",
 			disabled ? "true" : "false");
@@ -260,9 +255,9 @@ _show_sfp_permit_list_device(const char *intf_name, bool enforcement,
 	json_object_put(jexp);
 }
 
-#define show_sfp_permit_list_device(intf_name, enforcement, activation_delay_left, parts, time, \
+#define show_sfp_permit_list_device(intf_name, enforcement, parts, time, \
 		approved, disabled, present)		      \
-	_show_sfp_permit_list_device(intf_name, enforcement, activation_delay_left, parts, time, \
+	_show_sfp_permit_list_device(intf_name, enforcement, parts, time, \
 			approved, disabled, present,	__FILE__, __LINE__)
 
 static void sfp_permit_list_send(SfpPermitConfig *Cfg)
@@ -352,7 +347,7 @@ static void sfp_list_delete(const char *name)
 SfpPermitConfig__MisMatchConfig MismatchCfg =
 	SFP_PERMIT_CONFIG__MIS_MATCH_CONFIG__INIT;
 
-static void sfp_mismatch_action_send(bool enforcement, bool logging, uint32_t delay)
+static void sfp_mismatch_action_send(bool enforcement, bool logging)
 {
 	SfpPermitConfig Cfg = SFP_PERMIT_CONFIG__INIT;
 	Cfg.mtype_case = SFP_PERMIT_CONFIG__MTYPE_MISMATCH;
@@ -366,8 +361,6 @@ static void sfp_mismatch_action_send(bool enforcement, bool logging, uint32_t de
 	MismatchCfg.enforcement = enforcement ? SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE :
 		SFP_PERMIT_CONFIG__ENFORCEMENT__MONITOR;
 
-	MismatchCfg.has_delay = true;
-	MismatchCfg.delay = delay;
 	sfp_permit_list_send(&Cfg);
 	sleep(5);
 }
@@ -383,9 +376,9 @@ DP_START_TEST(list, test1)
 	/*
 	 * Set up the mismatch global info.
 	 */
-	sfp_mismatch_action_send(true, true, 300);
+	sfp_mismatch_action_send(true, true);
 
-	show_sfp_permit_mismatch_info(true, true, 300);
+	show_sfp_permit_mismatch_info(true, true);
 
 	dp_test_sys_uptime_inc(10);
 
@@ -397,8 +390,7 @@ DP_START_TEST(list, test1)
 	/* Add an SFP of part_id 'CATHERINE' that is not in the list */
 	generate_sfpd_file("sfpd_status", PORT1, INTF1, "CATHERINE");
 	SFPD_NOTIFY;
-	show_sfp_permit_list_device(INTF1, false, 290, "CATHERINE",
-		10, false, false, true);
+	show_sfp_permit_list_device(INTF1, true, "CATHERINE", 10, false, true, true);
 
 	/* Add a second list of allowed SFPs */
 	sfp_list_add("List_2", &SFP_list[5], 5);
@@ -414,32 +406,15 @@ DP_START_TEST(list, test1)
 	sfp_permit_match_check("DESa", true);
 	sfp_permit_match_check("Yoda", false);
 
-	/* Add an SFP  part_id 'BILL' that is not in the allowed list, but will
-	 * not be disabled as the enforcement delay has not expired
-	 */
-	dp_test_sys_uptime_inc(10);
-
-	generate_sfpd_file("sfpd_status", PORT2, INTF2, "BILL");
-	SFPD_NOTIFY;
-	show_sfp_permit_list_device(INTF2, false, 280, "BILL", 20, false, false, true);
-
-	/* Add 'BILL' to the allowed list */
-	sfp_list_add("List_2", &SFP_list[5], 6);
-
-	show_sfp_permit_list_device(INTF2, false, 280, "BILL", 20, true, false, true);
-
-	/* Walk past the enforcement delay and add a disallowed SFP
-	 * 'HUGH'
-	 */
+	/* Add a disallowed SFP 'HUGH' */
 	dp_test_sys_uptime_inc(300);
-
 	generate_sfpd_file("sfpd_status", PORT3, INTF3, "HUGH");
 	SFPD_NOTIFY;
-	show_sfp_permit_list_device(INTF3, true, 0, "HUGH", 320, false, true, true);
+	show_sfp_permit_list_device(INTF3, true, "HUGH", 310, false, true, true);
 
-	/* Change the mode to monitor and check if the disallowed SFP is brought up again */
-	sfp_mismatch_action_send(false, true, 300);
-	show_sfp_permit_list_device(INTF3, false, 0, "HUGH", 320, false, false, true);
+	/* Change the mode to monitor and check if the disallowed SFP is brought up */
+	sfp_mismatch_action_send(false, true);
+	show_sfp_permit_list_device(INTF3, false, "HUGH", 310, false, false, true);
 
 	/* Now start to clean up */
 	sfp_list_delete("List_1");
@@ -458,9 +433,6 @@ DP_START_TEST(list, test1)
 	show_sfp_permit_list_info("List_1", 2, "PAULINE", "Brocade", NULL, NULL);
 
 	sfp_list_delete("List_1");
-
-	/* Disable enforcement */
-	sfp_mismatch_action_send(false, true, 300);
 
 	dp_test_console_request_reply("debug sfp-list", false);
 

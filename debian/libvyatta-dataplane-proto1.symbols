@@ -1721,7 +1721,6 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN30SfpPermitConfig_MisMatchConfig10descriptorEv@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig12InternalSwapEPS_@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig16default_instanceEv@Base 3.13.34
- _ZN30SfpPermitConfig_MisMatchConfig17kDelayFieldNumberE@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig18kActionFieldNumberE@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig19kLoggingFieldNumberE@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig21InitAsDefaultInstanceEv@Base 3.13.34
