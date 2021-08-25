@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -26,4 +26,4 @@ int npf_grouper_match(int af, g2_config_t *g_ctx, npf_cache_t *npc,
 
 int npf_grouper_destroy(g2_config_t **g_ctx);
 
-#endif
+#endif /* NPF_GROUPER_H */

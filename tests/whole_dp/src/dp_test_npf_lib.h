@@ -419,4 +419,4 @@ void cgn_alg_show_sessions(void);
 bool dp_test_ForwardingClassConfig_execute(const ForwardingClassConfig__AddressFamily af,
 					   const ForwardingClassConfig__ProtocolType proto_type,
 					   uint16_t tos_traffic_class);
-#endif
+#endif /* DP_TEST_NPF_LIB_H */

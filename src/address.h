@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -28,4 +28,4 @@ void add_local_addr(vrfid_t vrf_id, int family, const void *addr);
 void remove_local_addr(vrfid_t vrf_id, int family, const void *addr);
 void nat_ifaddr_change(int family, int ifindex, struct in_addr *addr);
 
-#endif
+#endif /* ADDRESS_H */

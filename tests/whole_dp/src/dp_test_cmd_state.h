@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -37,4 +37,4 @@ _dp_test_neigh_clear_entry(const char *ifname, const char *ipaddr,
 #define dp_test_neigh_clear_entry(ifname, ipaddr) \
 	_dp_test_neigh_clear_entry(ifname, ipaddr, __FILE__, __func__, __LINE__)
 
-#endif /* _DP_TEST_CMD_STATE_H_ */
+#endif /* DP_TEST_CMD_STATE_H */

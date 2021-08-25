@@ -55,4 +55,5 @@ void crypto_incmpl_policy_make_complete(void);
 void policy_feat_flush_vrf(struct crypto_vrf_ctx *vrf_ctx);
 
 void crypto_npf_cfg_commit_flush(void);
+
 #endif /* CRYPTO_POLICY_H */

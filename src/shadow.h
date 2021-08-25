@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -84,4 +84,5 @@ int tuntap_write(int fd, struct rte_mbuf *m, struct ifnet *ifp);
 bool local_packet_filter(const struct ifnet *ifp, struct rte_mbuf *m);
 struct shadow_if_info *get_port2shadowif(portid_t portid);
 struct shadow_if_info *get_fd2shadowif(int fd);
+
 #endif /* SHADOW_H */

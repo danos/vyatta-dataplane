@@ -628,12 +628,8 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 	const struct in6_addr *src;
 	uint16_t paylen, optlen, pktlen;
 
-	/*
-	 * Virtual interfaces have no valid portid, so use portid 0. And do so
-	 * for all interfaces for reasons of consistency. This is safe as the
-	 * mbuf pool stays in use even if the device for portid 0 is unplugged.
-	 */
-	m = pktmbuf_alloc(mbuf_pool(0), if_vrfid(ifp));
+	/* Virtual interfaces have no valid portid, so use the default pool. */
+	m = dp_pktmbuf_alloc_from_default(if_vrfid(ifp));
 	if (!m) {
 		ND6NBR_INC(mpoolfail);
 		return;
@@ -1071,12 +1067,8 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	struct nd_opt_hdr *nd_opt;
 	uint16_t paylen, optlen, pktlen;
 
-	/*
-	 * Virtual interfaces have no valid portid, so use portid 0. And do so
-	 * for all interfaces for reasons of consistency. This is safe as the
-	 * mbuf pool stays in use even if the device for portid 0 is unplugged.
-	 */
-	m = pktmbuf_alloc(mbuf_pool(0), if_vrfid(ifp));
+	/* Virtual interfaces have no valid portid, so use the default pool. */
+	m = dp_pktmbuf_alloc_from_default(if_vrfid(ifp));
 	if (!m) {
 		ND6NBR_INC(mpoolfail);
 		return NULL;

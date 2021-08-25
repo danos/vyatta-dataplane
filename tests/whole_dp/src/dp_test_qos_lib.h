@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -525,4 +525,4 @@ void qos_lib_test_setup(void);
 
 void qos_lib_test_teardown(void);
 
-#endif
+#endif /* DP_TEST_QOS_LIB_H */

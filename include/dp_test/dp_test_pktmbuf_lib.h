@@ -284,4 +284,5 @@ dp_test_pktmbuf_vlan_init(struct rte_mbuf *m,
 
 void
 dp_test_pktmbuf_vlan_clear(struct rte_mbuf *m);
-#endif /* __DP_PKTMBUF_LIB_H__ */
+
+#endif /* DP_TEST_PKTMBUF_LIB_H */

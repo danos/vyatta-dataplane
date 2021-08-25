@@ -942,7 +942,7 @@ ip6_spath_filter(struct ifnet *l2_ifp, struct rte_mbuf **mp)
  * Packet is consumed.
  */
 int
-ip6_spath_output(struct ifnet *l2_ifp, struct rte_mbuf *m)
+ip6_spath_output(struct ifnet *l2_ifp, struct ifnet *in_ifp, struct rte_mbuf *m)
 {
 	struct bridge_port *brport;
 	struct ifnet *ifp;
@@ -967,6 +967,6 @@ ip6_spath_output(struct ifnet *l2_ifp, struct rte_mbuf *m)
 		return 0;
 	}
 
-	if_output(l2_ifp, m, NULL, ETH_P_IPV6);
+	if_output(l2_ifp, m, in_ifp, ETH_P_IPV6);
 	return 0;
 }

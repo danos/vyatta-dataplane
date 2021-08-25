@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -28,4 +28,4 @@ void npf_dump_rule_groups(FILE *fp);
  */
 void npf_dump_attach_points(FILE *fp);
 
-#endif
+#endif /* NPF_DUMP_H */

@@ -79,4 +79,4 @@ int rpc_alg_config(struct npf_alg *rpc, enum alg_config_op op, int argc,
  */
 int rpc_alg_reset(struct npf_alg *rpc);
 
-#endif
+#endif /* ALG_RPC_H */

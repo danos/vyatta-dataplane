@@ -55,4 +55,4 @@ void npf_timeout_destroy_instance(struct npf_timeout *to);
 struct npf_timeout *npf_timeout_ref_get(struct npf_timeout *to);
 void npf_timeout_ref_put(struct npf_timeout *to);
 
-#endif  /* NPF_TIMEOUTS_H */
+#endif /* NPF_TIMEOUTS_H */

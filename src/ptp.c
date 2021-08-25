@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -918,7 +918,7 @@ void ptp_peer_dst_resolve(struct ptp_peer_t *peer,
 			if_output(ifp, m, NULL, RTE_ETHER_TYPE_ARP);
 
 	} else if (peer->ipaddr.addr_family == FAL_IP_ADDR_FAMILY_IPV6) {
-		m = pktmbuf_alloc(mbuf_pool(0), if_vrfid(ifp));
+		m = dp_pktmbuf_alloc_from_default(if_vrfid(ifp));
 		if (!m) {
 			RTE_LOG(ERR, DATAPLANE, "%s: no mbufs for ND\n",
 				__func__);

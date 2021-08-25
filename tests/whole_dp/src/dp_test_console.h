@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -26,4 +26,4 @@ void dp_test_console_request_pb(const char *req, int req_len,
 void dp_test_console_request_reply(const char *cmd, bool print);
 char *dp_test_console_set_endpoint(enum cont_src_en cont_src);
 
-#endif /* _DP_TEST_CONSOLE_H_ */
+#endif /* DP_TEST_CONSOLE_H */

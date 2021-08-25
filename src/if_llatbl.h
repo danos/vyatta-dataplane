@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2004 Luigi Rizzo, Alessandro Cerri. All rights reserved.
  * Copyright (c) 2004-2008 Qing Li. All rights reserved.
  * Copyright (c) 2008 Kip Macy. All rights reserved.
@@ -233,4 +233,4 @@ llentry_has_been_used(struct llentry *lle);
 void
 llentry_issue_pending_fal_updates(struct llentry *lle);
 
-#endif	/* IF_LLATBL_H */
+#endif /* IF_LLATBL_H */

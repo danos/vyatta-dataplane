@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -22,4 +22,4 @@ void get_garp_cfg(struct garp_cfg *cfg);
 
 void set_garp_cfg(int op, enum garp_pkt_action action);
 
-#endif
+#endif /* ARP_CFG_H */

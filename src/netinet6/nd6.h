@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -74,4 +74,4 @@ union nd_opts {
 #define ND6_LLINFO_PROBE	4
 #define ND6_LLINFO_MAX ND6_LLINFO_PROBE
 
-#endif /* !ND6_H */
+#endif /* ND6_H */

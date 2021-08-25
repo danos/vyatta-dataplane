@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -182,4 +182,5 @@ struct mfc {
 	fal_object_t	mfc_fal_ol;		/* fal olist group object    */
 	struct fal_object_list_t *mfc_fal_ol_lst;/* fal olist members object */
 };
+
 #endif /* IP_MROUTE_H */

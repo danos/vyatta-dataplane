@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -29,4 +29,4 @@ struct cgn_policy *cgn_if_find_policy_by_name(struct ifnet *ifp,
 struct cgn_policy *cgn_if_find_policy_by_addr(struct ifnet *ifp,
 					      uint32_t addr);
 
-#endif /* _CGN_IF_H_ */
+#endif /* CGN_IF_H */

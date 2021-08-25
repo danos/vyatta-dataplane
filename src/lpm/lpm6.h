@@ -1,5 +1,5 @@
 /*-
- *   Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ *   Copyright (c) 2018-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  *   BSD LICENSE
  *
@@ -348,4 +348,4 @@ int lpm6_tracker_get_cover_ip_and_depth(struct rt_tracker_info *ti_info,
 }
 #endif
 
-#endif
+#endif /* LPM6_H */

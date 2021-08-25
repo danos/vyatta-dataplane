@@ -846,4 +846,4 @@ dp_test_create_arp_pak(ushort op, const char *s_mac, const char *d_mac,
 		       const char *spa_addr, const char *tpa_addr,
 		       uint16_t vlan_id);
 
-#endif /* __DP_PKTMBUF_LIB_INTERNAL_H__ */
+#endif /* DP_TEST_PKTMBUF_LIB_INTERNAL_H */

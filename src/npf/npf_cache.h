@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -558,4 +558,5 @@ int npf_update_v4_cksum(npf_cache_t *npc, struct rte_mbuf *nbuf,
 	return nbuf_advstore(&nbuf, &n_ptr, offby, sizeof(ip->ip_sum),
 			     &ip->ip_sum);
 }
+
 #endif /* NPF_CACHE_H */

@@ -259,4 +259,4 @@ json_object *
 dp_test_npf_json_get_nat_rule(const char *real_ifname,
 			      const char *rule, bool snat);
 
-#endif
+#endif /* DP_TEST_NPF_NAT_LIB_H */

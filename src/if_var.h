@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.
  * All rights reserved.
  * Copyright (c) 1982, 1986, 1989, 1993
  *	The Regents of the University of California.  All rights reserved.
@@ -1146,4 +1146,4 @@ int if_node_instance_feat_change_all(struct pl_feature_registration *feat,
 				     pl_node_feat_change *feat_change);
 
 
-#endif /* !IF_VAR_H */
+#endif /* IF_VAR_H */

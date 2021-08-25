@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -14,4 +14,4 @@ int cmd_ptp_cfg(FILE *f, int argc, char **argv);
 int cmd_ptp_op(FILE *f, int argc, char **argv);
 int cmd_ptp_ut(FILE *f, int argc, char **argv);
 
-#endif
+#endif /* PTP_H */

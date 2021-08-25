@@ -178,4 +178,4 @@ void cgn_source_gc_pass(void);
 void cgn_source_init(void);
 void cgn_source_uninit(void);
 
-#endif
+#endif /* CGN_SOURCE_H */

@@ -105,4 +105,4 @@ void _dp_test_session_unlink_all(struct session *s, const char *file, int line);
 #define dp_test_session_unlink_all(s) \
 	_dp_test_session_unlink_all(s, __FILE__, __LINE__)
 
-#endif  /* __DP_TEST_SESSION_LIB_H__ */
+#endif /* DP_TEST_SESSION_INTERNAL_LIB_H */

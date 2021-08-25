@@ -48,6 +48,7 @@
 #include "compat.h"
 #include "compiler.h"
 #include "config_internal.h"
+#include "crypto/crypto.h"
 #include "crypto/crypto_forward.h"
 #include "crypto/vti.h"
 #include "dp_event.h"
@@ -94,6 +95,46 @@ static uint64_t shadow_next_ring_id;
 
 /* inproc server address */
 static const char shadow_inproc[] = "inproc://shadow";
+
+static uint8_t
+shadow_crypto_output(struct ifnet **ifp, struct ifnet **host_ifp,
+		     struct rte_mbuf *m,
+		     struct rte_ether_hdr *hdr)
+{
+	struct next_hop *nh = NULL;
+	enum cont_src_en cont_src = CONT_SRC_MAIN;
+
+	/*
+	 * If the packet matches an outbound IPsec
+	 * policy, send it to the crypto. If it comes
+	 * back with a next hop, then it has a virtual
+	 * feature point configured which might have
+	 * output features we need to run before encryption.
+	 */
+
+	if (unlikely(crypto_policy_check_outbound(*ifp, &m, RT_TABLE_MAIN,
+						  hdr->ether_type, &nh))) {
+		/* consumed */
+		return 1;
+	}
+
+	if (nh) {
+		*ifp = dp_nh_get_ifp(nh);
+		if (*ifp)
+			cont_src = (*ifp)->if_cont_src;
+
+		*host_ifp = get_lo_ifp(cont_src);
+		if (!*host_ifp)
+			goto drop;
+	}
+
+	/* not ours */
+	return 0;
+
+drop:
+	dp_pktmbuf_notify_and_free(m);
+	return -1;
+}
 
 /*
  * Determine the shadow interface where packet should
@@ -379,17 +420,26 @@ static uint8_t
 shadow_feature_if_output(struct ifnet *ifp, struct rte_mbuf *m,
 			 struct rte_ether_hdr *hdr)
 {
+	struct ifnet *host_ifp = NULL;
 	if (hdr->ether_type == htons(RTE_ETHER_TYPE_IPV4)) {
-		if (ip_spath_output(ifp, m) < 0)
+		if (unlikely(crypto_on(ifp) && shadow_crypto_output(&ifp, &host_ifp, m, hdr)))
+			/* pak freed */
+			goto done;
+		if (ip_spath_output(ifp, host_ifp, m) < 0)
 			/* pak freed, but not yet counted */
 			return 1;
 	} else if (hdr->ether_type == htons(RTE_ETHER_TYPE_IPV6)) {
-		if (ip6_spath_output(ifp, m) < 0)
+		if (unlikely(crypto_on(ifp) && shadow_crypto_output(&ifp, &host_ifp, m, hdr)))
+			/* pak freed */
+			goto done;
+		if (ip6_spath_output(ifp, host_ifp, m) < 0)
 			/* pak freed, but not yet counted */
 			return 1;
 	} else {
 		if_output(ifp, m, NULL, ntohs(hdr->ether_type));
 	}
+
+done:
 	return 0;
 }
 

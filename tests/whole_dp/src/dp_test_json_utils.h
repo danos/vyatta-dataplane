@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018,2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018,2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -160,4 +160,4 @@ json_object *
 dp_test_json_search(json_object *jobj, struct dp_test_json_search_key *key_list,
 		    int nkeys);
 
-#endif /* _DP_TEST_JSON_UTILS_H_ */
+#endif /* DP_TEST_JSON_UTILS_H */

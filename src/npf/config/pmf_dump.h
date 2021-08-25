@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -12,4 +12,4 @@
 struct pmf_rule;
 void pmf_dump_rule_json(struct pmf_rule *rule, json_writer_t *json);
 
-#endif /* _PMF_DUMP_H_ */
+#endif /* PMF_DUMP_H */

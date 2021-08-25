@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -32,4 +32,4 @@ static inline bool is_l2tpeth(const char *ifname)
 	return strncmp(ifname, "lttp", 4) == 0;
 }
 
-#endif
+#endif /* IF_NAME_TYPES_H */

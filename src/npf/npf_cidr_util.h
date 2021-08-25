@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -107,4 +107,4 @@ typedef int (cidr_tree_walk_cb)(uint8_t *, int, int, void *);
 void npf_cidr_tree_walk(struct cidr_tree *tree, int alen,
 			cidr_tree_walk_cb *cb, void *ctx);
 
-#endif
+#endif /* NPF_CIDR_UTIL_H */

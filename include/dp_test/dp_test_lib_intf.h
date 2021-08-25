@@ -98,4 +98,5 @@ void _dp_test_intf_vif_del(const char *vif_name, uint16_t vlan,
 #define dp_test_intf_vif_del_tag_proto(vif_name, vlan, vlan_proto)	\
 	_dp_test_intf_vif_del(vif_name, vlan, vlan_proto,		\
 			      __FILE__, __func__, __LINE__)
-#endif /* _DP_TEST_LIB_INTF_H_ */
+
+#endif /* DP_TEST_LIB_INTF_H */

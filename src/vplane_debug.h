@@ -91,4 +91,5 @@ extern uint64_t dp_debug_init;
 int cmd_debug(FILE *f, int argc, char **argv);
 int cmd_log(FILE *f, int argc, char **argv);
 void debug_init(void);
-#endif /* _MAIN_H_ */
+
+#endif /* VPLANE_DEBUG_H */

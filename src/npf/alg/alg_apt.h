@@ -142,4 +142,4 @@ struct apt_event_ops {
 
 void apt_event_register(const struct apt_event_ops *ops);
 
-#endif /* _ALG_TUPLE_H_ */
+#endif /* ALG_APT_H */

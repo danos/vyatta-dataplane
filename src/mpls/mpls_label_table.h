@@ -77,4 +77,4 @@ int mpls_label_table_get_pd_subset_data(json_writer_t *json,
 
 void mpls_update_all_routes_for_nh_change(int family, uint32_t nhl_idx);
 
-#endif
+#endif /* MPLS_LABEL_TABLE_H */

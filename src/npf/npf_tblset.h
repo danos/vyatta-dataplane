@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -302,4 +302,4 @@ static ALWAYS_INLINE bool npf_tbl_id_is_valid(uint id)
 	return id != NPF_TBLID_NONE;
 }
 
-#endif /*  NPF_TBLSET_H */
+#endif /* NPF_TBLSET_H */

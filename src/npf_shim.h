@@ -62,4 +62,5 @@ void npf_reset_config(enum cont_src_en cont_src);
 void npf_print_state_stats(json_writer_t *json);
 
 bool npf_feature_is_nat(void *data);
-#endif /* NPF_SHIM */
+
+#endif /* NPF_SHIM_H */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -19,4 +19,5 @@ sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 
 int sfpd_open_socket(void);
 void sfpd_unsubscribe(void);
-#endif
+
+#endif /* TRANSCEIVER_H */

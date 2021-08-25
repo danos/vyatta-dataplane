@@ -190,4 +190,4 @@ int dp_test_session_counters(const char *options,
 			 uint32_t *bytes_in, uint32_t *bytes_out,
 			 uint32_t *sess_id);
 
-#endif  /* __DP_TEST_SESSION_LIB_H__ */
+#endif /* DP_TEST_SESSION_LIB_H */

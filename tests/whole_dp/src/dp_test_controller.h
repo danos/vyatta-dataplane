@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -41,4 +41,4 @@ void dp_test_send_config_src_pb(enum cont_src_en cont_src,
 				void *cmd, size_t cmd_len);
 void dp_test_set_config_err(int error);
 
-#endif /* _DP_TEST_CONTROLLER_H_ */
+#endif /* DP_TEST_CONTROLLER_H */

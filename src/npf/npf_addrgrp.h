@@ -377,4 +377,4 @@ void npf_addrgrp_show(FILE *fp, struct npf_show_ag_ctl *ctl);
 void npf_addrgrp_jsonw_one(json_writer_t *json, struct npf_addrgrp *ag,
 			   struct npf_show_ag_ctl *ctl);
 
-#endif
+#endif /* NPF_ADDRGRP_H */

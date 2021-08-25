@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -86,4 +86,4 @@ bool nat_pool_client_register(const struct np_client_ops *ops);
 /* Unregister event ops */
 void nat_pool_client_unregister(const struct np_client_ops *ops);
 
-#endif
+#endif /* NAT_POOL_PUBLIC_H */

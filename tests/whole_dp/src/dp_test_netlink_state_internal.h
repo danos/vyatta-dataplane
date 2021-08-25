@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -535,4 +535,4 @@ void dp_test_netlink_xfrm_getsa(uint32_t spi, /* Network byte order */
 				uint32_t reqid,
 				vrfid_t vrfid);
 
-#endif /* _DP_TEST_NETLINK_STATE_INTERNAL_H_ */
+#endif /* DP_TEST_NETLINK_STATE_INTERNAL_H */

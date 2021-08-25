@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -146,4 +146,4 @@ _dp_test_fw_ruleset_del(struct dp_test_fw_ruleset_t *rset,
 				 true, __FILE__, __LINE__)
 
 
-#endif
+#endif /* DP_TEST_FIREWALL_LIB_H */

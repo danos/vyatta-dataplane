@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -51,4 +51,5 @@
 typedef struct json_writer json_writer_t;
 
 void npf_json_ncode(const void *nc, size_t len, json_writer_t *json);
+
 #endif /* NPF_DISASSEMBLE_H */

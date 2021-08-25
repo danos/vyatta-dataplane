@@ -35,4 +35,4 @@ int sip_alg_manage_media(npf_session_t *se, npf_nat_t *nat,
 struct sip_alg_request *sip_alg_parse(struct npf_session *se,
 				      npf_cache_t *npc, struct rte_mbuf *nbuf);
 
-#endif
+#endif /* SIP_PARSE_H */

@@ -26,4 +26,4 @@ struct sip_alg_session {
 	struct osip_call_id	**ss_call_ids;
 };
 
-#endif
+#endif /* ALG_SIP_SESSION_H */

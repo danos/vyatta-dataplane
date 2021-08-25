@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -66,4 +66,4 @@ dp_test_portmonitor_create_erspandst(uint32_t id, const char *srcif,
 				const char *dstif, uint16_t erspanid,
 				uint8_t erspanhdr);
 
-#endif
+#endif /* DP_TEST_LIB_PORTMONITOR_H */

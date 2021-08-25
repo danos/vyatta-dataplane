@@ -1,7 +1,7 @@
 #ifndef _NPF_VRF_H_
 #define _NPF_VRF_H_
 /*
- * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -26,4 +26,4 @@ void npf_vrf_if_index_unset(struct ifnet *ifp);
 void npf_gbl_rs_count_incr(enum npf_ruleset_type rs_type);
 void npf_gbl_rs_count_decr(enum npf_ruleset_type rs_type);
 
-#endif
+#endif /* NPF_VRF_H */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -32,4 +32,4 @@ void ll_addr_set(struct llentry *lle, const struct rte_ether_addr *eth);
 /* Call this to link to routes when an lle transitions to VALID */
 void llentry_routing_install(struct llentry *lle);
 
-#endif
+#endif /* IF_ETHER_H */

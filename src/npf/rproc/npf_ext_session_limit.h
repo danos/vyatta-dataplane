@@ -37,4 +37,4 @@ bool npf_sess_limit_check(npf_rule_t *rl);
 void npf_sess_limit_state_change(void *handle, enum dp_session_state prev_state,
 				 enum dp_session_state state);
 
-#endif
+#endif /* NPF_EXT_SESSION_LIMIT_H */

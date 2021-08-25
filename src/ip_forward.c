@@ -673,7 +673,7 @@ ip_spath_filter(struct ifnet *l2_ifp, struct rte_mbuf **mp)
  * Packet is consumed.
  */
 int
-ip_spath_output(struct ifnet *l2_ifp, struct rte_mbuf *m)
+ip_spath_output(struct ifnet *l2_ifp, struct ifnet *in_ifp, struct rte_mbuf *m)
 {
 	struct bridge_port *brport;
 	struct ifnet *ifp;
@@ -697,7 +697,7 @@ ip_spath_output(struct ifnet *l2_ifp, struct rte_mbuf *m)
 		return 0;
 	}
 
-	if_output(l2_ifp, m, NULL, ETH_P_IP);
+	if_output(l2_ifp, m, in_ifp, ETH_P_IP);
 	return 0;
 
 drop:

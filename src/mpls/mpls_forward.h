@@ -48,4 +48,4 @@ void mpls_unlabeled_input(struct ifnet *ifp, struct rte_mbuf *m,
 			  struct next_hop *ip_nh, uint8_t ttl)
 	__hot_func;
 
-#endif
+#endif /* MPLS_FORWARD_H */

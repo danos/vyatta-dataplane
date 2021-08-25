@@ -22,4 +22,4 @@ extern uint64_t soft_ticks_us;
 /* Unix epoch in microsecs. Updated every 10ms. */
 extern uint64_t unix_epoch_us;
 
-#endif /* _SOFT_TICKS_H_ */
+#endif /* SOFT_TICKS_H */

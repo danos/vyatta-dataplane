@@ -398,4 +398,4 @@ struct pmf_nat *pmf_nat_create(void);
 struct pmf_qos_mark *pmf_qos_mark_create(void);
 struct pmf_rule *pmf_rule_alloc(void);
 
-#endif /* _PMF_RULE_H_ */
+#endif /* PMF_RULE_H */

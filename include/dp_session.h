@@ -326,4 +326,4 @@ int dp_session_pack_pb(struct session *session, void *buf, uint32_t size,
 		       enum session_pack_type spt,
 		       struct session **session_peer);
 
-#endif
+#endif /* DP_SESSION_H */

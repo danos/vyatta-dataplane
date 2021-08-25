@@ -115,18 +115,20 @@ int tap_receive(zloop_t *loop, zmq_pollitem_t *item,
 	void *base;
 	ssize_t len;
 	struct rte_mbuf *m = NULL;
-	portid_t portid;
+	struct rte_mempool *mp;
 
 	/*
-	 * Use the mbuf pool for portid 0 for virtual interfaces, as these have
-	 * no valid portid. This is safe, as the mbuf pool stays in use even if
-	 * the device for portid 0 is unplugged.
+	 * Use the default mbuf pool for virtual interfaces, as these have
+	 * no valid portid.
 	 */
-	portid = ifp->if_port == IF_PORT_ID_INVALID ? 0 : ifp->if_port;
+	if (ifp->if_port != IF_PORT_ID_INVALID)
+		mp = mbuf_pool(ifp->if_port);
+	else
+		mp = mbuf_pool_default();
 
 	/* optimize for in-place receive if not doing jumbo packets */
-	if (max_pkt <= rte_mbuf_buf_size(mbuf_pool(portid)))
-		m = pktmbuf_alloc(mbuf_pool(portid), if_vrfid(ifp));
+	if (mp && max_pkt <= rte_mbuf_buf_size(mp))
+		m = pktmbuf_alloc(mp, if_vrfid(ifp));
 
 	if (m)
 		base = rte_pktmbuf_mtod(m, char *);
@@ -157,7 +159,7 @@ int tap_receive(zloop_t *loop, zmq_pollitem_t *item,
 	if (m)
 		rte_pktmbuf_pkt_len(m) = rte_pktmbuf_data_len(m) = len;
 	else {
-		m = pkt_to_mbuf(mbuf_pool(portid), if_vrfid(ifp), base, len);
+		m = pkt_to_mbuf(mp, if_vrfid(ifp), base, len);
 		if (m == NULL) {
 			++sii->ts_nobufs;
 			return 0;

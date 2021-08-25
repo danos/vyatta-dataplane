@@ -31,4 +31,4 @@ enum alg_config_op {
 #define NPF_ALG_CONFIG_LAST   NPF_ALG_CONFIG_DISABLE
 #define NPF_ALG_CONFIG_SZ    (NPF_ALG_CONFIG_LAST + 1)
 
-#endif /* _ALG_DEFS_H_ */
+#endif /* ALG_DEFS_H */

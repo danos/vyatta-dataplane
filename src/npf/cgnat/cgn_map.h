@@ -75,4 +75,4 @@ void cgn_alloc_pool_available(struct nat_pool *np, struct apm *apm);
 void cgn_map_json(struct json_writer *json, const char *name,
 		  struct cgn_map *cmi);
 
-#endif
+#endif /* CGN_MAP_H */

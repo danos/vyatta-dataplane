@@ -67,4 +67,4 @@ int tftp_alg_nat(struct npf_session *se, struct npf_cache *npc,
 int tftp_alg_config(struct npf_alg *tftp, enum alg_config_op op, int argc,
 		    char *const argv[]);
 
-#endif
+#endif /* ALG_TFTP_H */

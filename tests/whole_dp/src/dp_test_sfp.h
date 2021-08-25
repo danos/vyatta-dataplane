@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -13,4 +13,4 @@ int dp_test_get_module_info(struct rte_eth_dev *dev,
 int dp_test_get_module_eeprom(struct rte_eth_dev *dev,
 			      struct rte_dev_eeprom_info *info);
 
-#endif
+#endif /* DP_TEST_SFP_H */

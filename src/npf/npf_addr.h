@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -152,4 +152,4 @@ npf_is_range_subnet4(npf_netmask_t plen, uint32_t start, uint32_t stop)
 	return (33 - ffs(~(start ^ stop))) == plen;
 }
 
-#endif
+#endif /* NPF_ADDR_H */

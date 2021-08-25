@@ -100,4 +100,4 @@ bool npf_nat64_session_log_enabled(struct npf_nat64 *n64);
 int npf_nat64_npf_pack_restore(struct npf_session *se,
 			       struct npf_pack_nat64 *pn64);
 
-#endif /* _NPF_NAT64_H_ */
+#endif /* NPF_NAT64_H */

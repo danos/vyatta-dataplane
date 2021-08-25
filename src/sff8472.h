@@ -579,4 +579,4 @@ static const char *sff_8024_id[SFF_8024_ID_LAST + 1] = {"Unknown",
 
 #define SFF_8472_POWER_FACTOR 10000.0
 
-#endif
+#endif /* SFF8472_H */

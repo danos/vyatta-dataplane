@@ -1,6 +1,6 @@
 /*-
- * Copyright (c) 2019-2020, AT&T Intellectual Property. All rights reserved.
- * Copyright (c) 2019 AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -50,4 +50,4 @@ typedef int (*route_tracker_handler)(FILE *f, int argc, char **argv);
 int cmd_rt_tracker_cfg(FILE *f, int argc, char **argv);
 void cmd_rt_tracker_cfg_test_set(route_tracker_handler handler);
 
-#endif /* RT_TRACKER */
+#endif /* RT_TRACKER_H */

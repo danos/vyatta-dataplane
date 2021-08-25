@@ -2132,6 +2132,17 @@ struct rte_mempool *mbuf_pool(unsigned int portid)
 	return port_alloc->rx_pool;
 }
 
+/* Get a reference to mbuf pool; usually, for creating control packets. */
+struct rte_mempool *mbuf_pool_default(void)
+{
+	unsigned int socket_id;
+
+	socket_id = rte_socket_id();
+	if (socket_id == (unsigned int) SOCKET_ID_ANY)
+		socket_id = 0;
+	return numa_pool[socket_id];
+}
+
 /* Create a standard mbuf pool */
 struct rte_mempool *mbuf_pool_create(const char *name,
 				     unsigned int n,
@@ -2200,6 +2211,8 @@ static uint16_t mbuf_pool_init(void)
 	/* Allocate mbuf pool per NUMA socket */
 	for (socketid = 0; socketid < RTE_MAX_NUMA_NODES; ++socketid) {
 		unsigned int bufsz = buf_size[socketid];
+
+		numa_pool[socketid] = NULL;
 
 		if (bufs_per_socket[socketid] == 0)
 			continue;
@@ -2652,6 +2665,7 @@ static int port_conf_init(portid_t portid)
 	uint8_t r;
 	uint16_t pf_max_rx_queues, pf_max_tx_queues;
 	uint8_t tx_desc_vm_multiplier;
+	const char *driver_name;
 
 	if (socketid < 0) /* SOCKET_ID_ANY */
 		socketid = 0;
@@ -2659,7 +2673,16 @@ static int port_conf_init(portid_t portid)
 	port_alloc->socketid = socketid;
 
 	rte_eth_dev_info_get(portid, &dev_info);
-	parm = get_driver_param(dev_info.driver_name, dev_info.speed_capa);
+	driver_name = dev_info.driver_name;
+
+	/* If this is the hyperv driver, it could be accelerated by
+	 * an underlying VF. This VF is more capable than the plain
+	 * netvsc driver.
+	 */
+	if (strcmp(dev_info.driver_name, "netvsc") == 0 &&
+	    dev_info.rx_offload_capa & DEV_RX_OFFLOAD_JUMBO_FRAME)
+		driver_name = "netvsc_vf";
+	parm = get_driver_param(driver_name, dev_info.speed_capa);
 
 	port_alloc->rx_desc = parm->rx_desc;
 	port_alloc->tx_desc = parm->tx_desc;

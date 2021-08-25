@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -319,4 +319,4 @@ int _dp_test_get_vrf_stat(vrfid_t vrfid, int af, int stat,
 #define dp_test_get_vrf_stat(vrfid, af, stat) \
 	_dp_test_get_vrf_stat(vrfid, af, stat, __FILE__, __LINE__)
 
-#endif /* _DP_TEST_CMD_CHECK_H_ */
+#endif /* DP_TEST_CMD_CHECK_H */

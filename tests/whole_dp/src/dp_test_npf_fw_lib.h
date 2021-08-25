@@ -323,4 +323,4 @@ _dpt_gre(const char *rx_intf, const char *pre_smac,
 		 _h, _i, _j, _k, _l, _m,				\
 		 __FILE__, __func__, __LINE__)
 
-#endif
+#endif /* DP_TEST_NPF_FW_LIB_H */

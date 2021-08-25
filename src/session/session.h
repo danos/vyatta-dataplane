@@ -973,4 +973,4 @@ static inline void se_save_stats(struct session *s,
 	}
 }
 
-#endif /* _SESSION_H_ */
+#endif /* SESSION_H */

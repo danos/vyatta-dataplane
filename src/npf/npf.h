@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  */
@@ -114,4 +114,4 @@ static inline time_t get_time_uptime(void)
 	return soft_ticks >> 10;
 }
 
-#endif	/* NPF_H */
+#endif /* NPF_H */

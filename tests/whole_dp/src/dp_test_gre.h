@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -25,4 +25,5 @@ void dp_test_gre6_teardown_tunnel(uint32_t vrfid, const char *tun_src,
 void gre6_test_build_expected_pak(struct dp_test_expected **expected,
 				  struct ip6_hdr *payload,
 				  struct ip6_hdr *outer);
-#endif
+
+#endif /* DP_TEST_GRE_H */

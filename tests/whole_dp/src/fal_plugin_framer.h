@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -30,4 +30,4 @@ int plugin_framer_rcv(struct rte_mbuf *mbuf, uint16_t *dpdk_port,
 		      union fal_pkt_feature_info *feat_info);
 int32_t plugin_framer_tx(void *sw_port, void *fal_info, struct rte_mbuf **mbuf);
 
-#endif //_FAL_PLUGIN_FAL_FRAME_H_
+#endif /* FAL_PLUGIN_FRAMER_H */

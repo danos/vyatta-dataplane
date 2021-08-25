@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -25,4 +25,4 @@ bool fal_plugin_ut_enable_rx_framer(bool enabled);
 int
 fal_plugin_backplane_from_sw_port(const char *name, uint16_t *dpdk_port);
 
-#endif
+#endif /* FAL_PLUGIN_SW_PORT_H */

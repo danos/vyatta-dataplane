@@ -48,4 +48,4 @@ size_t npf_rte_acl_rule_size(int af);
 
 void npf_rte_acl_dump(npf_match_ctx_t *ctx, json_writer_t *wr);
 
-#endif
+#endif /* NPF_RTE_ACL_H */

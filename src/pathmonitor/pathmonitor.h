@@ -1,7 +1,7 @@
 /*
  * Path monitor dataplane code
  *
- * Copyright (c) 2017-2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -33,4 +33,4 @@ void pathmon_deregister(struct pathmon_entry_t *entry);
 /* Return the compliance status of the specified pathmon entry. */
 enum pathmon_status pathmon_get_status(struct pathmon_entry_t *entry);
 
-#endif
+#endif /* PATHMONITOR_H */

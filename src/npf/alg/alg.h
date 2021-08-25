@@ -188,4 +188,4 @@ void npf_alg_rpc_destroy_instance(struct npf_alg *rpc);
  */
 void npf_alg_flush_all(void);
 
-#endif /* End of _ALG_H_ */
+#endif /* ALG_H */

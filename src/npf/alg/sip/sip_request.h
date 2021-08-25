@@ -61,5 +61,4 @@ void sip_destroy_ht(struct npf_alg *sip);
 int sip_ht_create(struct sip_private *sp);
 void sip_ht_gc(struct npf_alg *sip);
 
-
-#endif
+#endif /* SIP_REQUEST_H */

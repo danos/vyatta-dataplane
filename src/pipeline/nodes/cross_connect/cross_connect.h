@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -40,4 +40,4 @@ void cross_connect_link(struct ifnet *src_ifp, struct ifnet *dst_ifp,
 			bool config);
 void cross_connect_unlink(struct ifnet *src_ifp, bool config);
 
-#endif
+#endif /* CROSS_CONNECT_H */

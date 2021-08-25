@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -36,4 +36,4 @@ static inline const char *alg_feat_name(enum alg_feat feat)
 	return "unknown";
 }
 
-#endif /* _ALG_FEAT_H_ */
+#endif /* ALG_FEAT_H */

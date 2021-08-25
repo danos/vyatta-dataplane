@@ -20,4 +20,4 @@ bool is_watch_on(void);
  */
 void session_do_watch(struct session *session, enum dp_session_hook hook);
 
-#endif
+#endif /* SESSION_WATCH_H */

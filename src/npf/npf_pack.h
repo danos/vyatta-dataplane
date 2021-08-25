@@ -271,4 +271,4 @@ PackedDPSessionMsg *npf_unpack_pb(void *buf, uint32_t size);
 void npf_unpack_free_pb(PackedDPSessionMsg *pds);
 int npf_pack_restore_pb(void *buf, uint32_t size, enum session_pack_type *spt);
 
-#endif	/* NPF_PACK_H */
+#endif /* NPF_PACK_H */

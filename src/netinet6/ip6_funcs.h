@@ -157,4 +157,4 @@ bool icmp6_msg_type_to_icmp_type(uint8_t msgtype, uint8_t *icmptype);
 
 void icmp6_error_tclass_set(uint8_t tclass);
 uint8_t icmp6_error_tclass_get(void);
-#endif /*IP6_FUNCS_H*/
+#endif /* IP6_FUNCS_H */

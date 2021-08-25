@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -48,4 +48,4 @@ pb_register_cmd_err(const char *cmd);
 
 void list_all_protobuf_msg_versions(FILE *f);
 
-#endif
+#endif /* PROTOBUF_H */

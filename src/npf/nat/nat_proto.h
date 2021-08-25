@@ -82,4 +82,4 @@ static inline const char *nat_proto_lc_str(enum nat_proto  proto)
 	return "other";
 }
 
-#endif
+#endif /* NAT_PROTO_H */

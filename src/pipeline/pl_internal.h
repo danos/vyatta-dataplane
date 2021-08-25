@@ -2,7 +2,7 @@
  * pl_internal.h
  *
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2016, 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -37,4 +37,5 @@ void pl_graph_validate(void);
 uint64_t pl_get_node_stats(int id);
 
 void pl_show_plugin_state(json_writer_t *json, const char *plugin_name);
+
 #endif /* PL_INTERNAL_H */

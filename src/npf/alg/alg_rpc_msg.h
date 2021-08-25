@@ -35,4 +35,4 @@ struct rpc_reply {
 	uint32_t rp_port;
 };
 
-#endif
+#endif /* ALG_RPC_MSG_H */

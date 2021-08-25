@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -77,4 +77,4 @@ const struct power_profile *get_current_pm(void);
 int cmd_power_show(FILE *f, int argc, char **argv);
 int cmd_power_cfg(FILE *f, int argc, char **argv);
 
-#endif
+#endif /* POWER_H */

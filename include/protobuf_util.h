@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2020, AT&T Intellectual Property.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -38,4 +38,4 @@ int dp_protobuf_create_ipaddr(IPAddress **addr_msg);
  */
 int dp_protobuf_set_ipaddr(IPAddress *to, struct ip_addr *from);
 
-#endif
+#endif /* PROTOBUF_UTIL_H */

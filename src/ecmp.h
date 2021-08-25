@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2019,2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -39,4 +39,4 @@ struct next_hop *ecmp_mpls_create(struct nlattr *mpath, uint32_t *count,
 				  enum nh_type *nh_type,
 				  bool *missing_ifp);
 
-#endif
+#endif /* ECMP_H */

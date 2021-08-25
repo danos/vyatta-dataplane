@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -72,4 +72,4 @@ void crypto_rte_op_free(struct rte_crypto_op *cops[], uint16_t count);
 uint16_t crypto_rte_xform_packets(struct crypto_pkt_ctx *ctx_arr[],
 				  uint16_t count);
 
-#endif
+#endif /* CRYPTO_RTE_PMD_H */

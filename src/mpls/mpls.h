@@ -1,7 +1,7 @@
 /*
  * MPLS label stack encoding/decoding
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -188,4 +188,4 @@ char *mpls_labels_ntop(const uint32_t *label_stack, unsigned int num_labels,
 bool nh_outlabels_copy(union next_hop_outlabels *old,
 		       union next_hop_outlabels *copy);
 
-#endif /* MPLS_H_*/
+#endif /* MPLS_H */

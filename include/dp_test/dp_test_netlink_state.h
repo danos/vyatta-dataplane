@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -149,4 +149,4 @@ void _dp_test_netlink_add_route(const char *route_str, bool verify,
 void _dp_test_netlink_del_route(const char *route_str, bool verify,
 				const char *file, const char *func, int line);
 
-#endif /* _DP_TEST_NETLINK_STATE_H_ */
+#endif /* DP_TEST_NETLINK_STATE_H */

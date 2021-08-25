@@ -87,4 +87,5 @@ void capture_hardware(const struct ifnet *ifp, struct rte_mbuf *mbuf)
 void capture_burst(const struct ifnet *ifp, struct rte_mbuf *pkts[], unsigned int n)
 	__cold_func;
 int cmd_capture(FILE *f, int argc, char **argv);
+
 #endif /* CAPTURE_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2019,2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -13,4 +13,4 @@
 npf_decision_t nptv6_translate(npf_cache_t *npc, struct rte_mbuf **nbuf,
 			       void *arg, int *icmp_type, int *icmp_code);
 
-#endif
+#endif /* NPF_EXT_NPTV6_H */

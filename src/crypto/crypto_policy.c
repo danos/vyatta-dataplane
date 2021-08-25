@@ -1685,6 +1685,19 @@ crypto_policy_handle_packet_outbound_checks(struct rte_mbuf *mbuf,
 }
 
 /*
+ * Need to setup the L3 len in the mbuf if this is an IPv4 packet
+ * from the slow-path.
+ */
+static inline void
+crypto_shadow_fix_l3_len(struct rte_mbuf *m)
+{
+	if (!pktmbuf_mdata_exists(m, PKT_MDATA_FROM_US))
+		return;
+
+	dp_pktmbuf_l3_len(m) = iphdr(m)->ihl << 2;
+}
+
+/*
  * crypto_policy_handle_packet_outbound()
  *
  * Handle a packet that has matched the rldb rule for an IPsec output policy.
@@ -1738,6 +1751,8 @@ crypto_policy_handle_packet_outbound(struct ifnet *vfp_ifp,
 		IPSEC_CNT_INC(DROPPED_FILTER_REJECT);
 		goto drop;
 	}
+
+	crypto_shadow_fix_l3_len(mbuf);
 
 	if (likely(nxt_ifp && not_slowpath)) {
 		const struct iphdr *ip = iphdr(mbuf);

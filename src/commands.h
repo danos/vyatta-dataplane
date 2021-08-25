@@ -59,4 +59,4 @@ void show_address(json_writer_t *wr, const struct ifnet *ifp);
 int cmd_incomplete(FILE *f, int argc, char **argv);
 int cmd_switchport(FILE *f, int argc, char **argv);
 
-#endif
+#endif /* COMMANDS_H */

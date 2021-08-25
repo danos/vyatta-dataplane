@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2019,2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -10,4 +10,4 @@
 
 void dp_test_route_tracker_cb(void *cb_ctx);
 
-#endif /* DP_TEST_ROUTE_TRACKER */
+#endif /* DP_TEST_ROUTE_TRACKER_H */

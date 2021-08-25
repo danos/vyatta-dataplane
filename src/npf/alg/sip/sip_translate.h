@@ -39,4 +39,4 @@ int sip_alg_translate_packet(npf_session_t *se, npf_cache_t *npc,
 			     npf_nat_t *ns, struct rte_mbuf *nbuf,
 			     struct npf_alg *sip, const int di);
 
-#endif /* _SIP_TRANSLATE_H_ */
+#endif /* SIP_TRANSLATE_H */

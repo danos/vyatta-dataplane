@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  *
@@ -79,4 +79,4 @@ int lag_set_l2_address(struct ifnet *ifp, struct rte_ether_addr *macaddr);
 int lag_min_links(struct ifnet *ifp, uint16_t *min_links);
 int lag_set_min_links(struct ifnet *ifp, uint16_t min_links);
 
-#endif
+#endif /* LAG_H */
