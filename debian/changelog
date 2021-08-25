@@ -1,3 +1,16 @@
+vyatta-dataplane (3.14.14) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * ut: move dp_test_create_gre_ipv[46]_pak fns into dp_test_pktmbuf_lib.h
+  * ut: make two GRE test functions usable by other tests
+  * ut: rename fn gre_test_build_expected_ecn_pak()
+  * ut: move dp_test_gre.h into include/dp_test
+  * ut: move VTI interface creation fns into dp_test_lib_intf.h
+  * ut: move fns to add/delete addrs on i/f to dp_test_netlink_state.h
+  * ut: move dp_test_create_icmp_ipv4_pak() into dp_test_pktmbuf_lib.h
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 25 Aug 2021 14:53:19 +0100
+
 vyatta-dataplane (3.14.13) unstable; urgency=medium
 
   [ Paul Aitken ]
