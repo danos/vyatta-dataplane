@@ -29,7 +29,48 @@ for commit in `git log --oneline $1..$2 --pretty=format:"%h"`; do
 done
 
 if [ -n "$missing" ]; then
-    echo -e "* Please add the VRVDR or VYINT jira ID to these commits:\n\n$missing"
+    echo -e "* Please add the VRVDR or VYINT jira ID to these commits:\n$missing\n"
+fi
+
+
+# Check file permissions.
+#
+check_files() {
+
+    # All dirs are 755.
+    #
+    find . -type d \! -perm 755
+
+    # Source code is 644.
+    #
+    find src include lib protobuf .github -type f \! -perm 644
+
+    # Everything in the TLD is 644.
+    #
+    find . -maxdepth 1 -type f \! -perm 644
+
+    # Executables are 755.
+    #
+    find scripts tools -type f \! -perm 755
+
+    # Tests are 644 except for dataplane_test.sh which is 755.
+    #
+    find tests -type f \! -perm 644 | grep -v tests/whole_dp/dataplane_test.sh
+    find tests -name dataplane_test.sh \! -perm 755
+
+    # Debian executables must be 755
+    #
+    find `find debian -type f -exec file {} \; | grep executable | cut -d: -f1` \! -perm 755
+
+    # Debian non-executables must be 644
+    #
+    find `find debian -type f -exec file {} \; | grep -v executable | cut -d: -f1` \! -perm 644
+}
+
+f=$(check_files)
+
+if [ -n "$f" ]; then
+    echo -e "* Check the permissions of these files:\n$f\n"
 fi
 
 
