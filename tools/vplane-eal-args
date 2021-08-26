@@ -1,5 +1,11 @@
 #! /usr/bin/perl
 #
+# Copyright (c) 2019, AT&T Intellectual Property.
+# All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+#
+
 # This script looks at configuration and system to determine
 # the arguments for the DPDK Environment Abstraction Layer
 

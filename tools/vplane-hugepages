@@ -1,4 +1,10 @@
 #! /bin/bash
+#
+# Copyright (c) 2019-2020, AT&T Intellectual Property.
+# All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 
 # vplane-hugepages: handle set/clean/show of hugepages
 # reservation.

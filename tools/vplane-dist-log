@@ -1,4 +1,10 @@
 #!/bin/bash
+#
+# Copyright (c) 2019, AT&T Intellectual Property.
+# All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 
 # If a log port is configured, set up an rsyslog conf to send all
 # dataplane syslogs to rsyslog on the controller.

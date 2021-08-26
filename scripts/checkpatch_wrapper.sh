@@ -1,5 +1,10 @@
 #! /bin/bash
-# Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+#
+# Copyright (c) 2021, AT&T Intellectual Property.
+# All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 
 usage () {
     echo "Usage: $(basename $0) target source" >&2

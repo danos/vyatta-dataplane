@@ -1,4 +1,10 @@
 #! /usr/bin/perl
+#
+# Copyright (c) 2019, AT&T Intellectual Property.
+# All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+#
 
 use warnings;
 use strict;
