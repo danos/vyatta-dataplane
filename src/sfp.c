@@ -61,6 +61,8 @@
 #include <transceiver.h>
 #include "protobuf.h"
 #include "protobuf/SFPMonitor.pb-c.h"
+#include "if/dpdk-eth/dpdk_eth_if.h"
+#include "if_var.h"
 
 struct _nv {
 	int v;
@@ -2355,3 +2357,72 @@ PB_REGISTER_CMD(sfp_monitor_cmd) = {
 	.cmd = "vyatta:sfpmonitor",
 	.handler = cmd_sfp_monitor_cfg,
 };
+
+static bool
+cmd_intf_sfp_status(struct ifnet *ifp, void *arg)
+{
+	struct dpdk_eth_if_softc *sc;
+	json_writer_t *wr = arg;
+
+	sc = rcu_dereference(ifp->if_softc);
+	if (!sc)
+		return false;
+
+	jsonw_start_object(wr);
+
+	jsonw_string_field(wr, "name", ifp->if_name);
+	dpdk_eth_if_show_xcvr_info(ifp, false, wr);
+
+	jsonw_end_object(wr);
+	return false;
+}
+
+static void cmd_sfp_status(json_writer_t *wr, char *ifname)
+{
+	struct ifnet *ifp;
+
+	jsonw_name(wr, "sfp_status");
+	jsonw_start_array(wr);
+	if (ifname) {
+		ifp = dp_ifnet_byifname(ifname);
+		if (!ifp)
+			return;
+
+		cmd_intf_sfp_status(ifp, wr);
+	} else
+		dpdk_eth_if_walk(cmd_intf_sfp_status, wr);
+
+	jsonw_end_array(wr);
+}
+
+int cmd_sfp_monitor_op(FILE *f, int argc, char *argv[])
+{
+	json_writer_t *wr;
+	char *ifname = NULL;
+	int ret = 0;
+
+	if (f == NULL)
+		f = stderr;
+
+	wr = jsonw_new(f);
+	if (!wr)
+		return -ENOMEM;
+
+	if (argc > 3 || argc < 2) {
+		ret = -EINVAL;
+		goto done;
+	}
+
+	if (!strcmp(argv[1], "show")) {
+		if (argc == 3)
+			ifname = argv[2];
+		cmd_sfp_status(wr, ifname);
+	} else
+		ret = -EINVAL;
+
+done:
+	if (ret)
+		fprintf(f, "Usage: sfp-monitor show [ <ifname> ]");
+	jsonw_destroy(&wr);
+	return ret;
+}

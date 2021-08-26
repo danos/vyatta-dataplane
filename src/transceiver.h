@@ -31,4 +31,6 @@ int cmd_sfp_permit_op(FILE *f, int argc, char **argv);
 
 void sfpd_process_presence_update(void);
 
+int cmd_sfp_monitor_op(FILE *f, int argc, char **argv);
+
 #endif /* TRANSCEIVER_H */

@@ -1902,6 +1902,7 @@ static const cmd_t cmd_table[] = {
 	{ 0,    "rt-tracker",   cmd_rt_tracker_op, "Route Tracker commands" },
 	{ 0,	"session-op",	cmd_session_op,	"Display session table info" },
 	{ 0,	"session-ut",	cmd_session_ut,	"session table UT cmds" },
+	{ 0,	"sfp-monitor",  cmd_sfp_monitor_op, "SFP monitoring cmds" },
 	{ 1,	"sfp-permit-list", cmd_sfp_permit_op, "SFP permit list" },
 	{ 0,	"slowpath",	cmd_shadow,	"Slow path statistics" },
 	{ 0,	"snmp",		cmd_snmp,	"SNMP network statistics" },
