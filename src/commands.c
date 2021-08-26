@@ -101,7 +101,7 @@
 #include "protobuf/ICMPRateLimConfig.pb-c.h"
 #include "protobuf/ForwardingClassConfig.pb-c.h"
 #include "crypto/esp.h"
-#include "sfp_permit_list.h"
+#include <transceiver.h>
 
 #define MAX_CMDLINE 512
 #define MAX_ARGS    128
@@ -1902,9 +1902,9 @@ static const cmd_t cmd_table[] = {
 	{ 0,    "rt-tracker",   cmd_rt_tracker_op, "Route Tracker commands" },
 	{ 0,	"session-op",	cmd_session_op,	"Display session table info" },
 	{ 0,	"session-ut",	cmd_session_ut,	"session table UT cmds" },
+	{ 1,	"sfp-permit-list", cmd_sfp_permit_op, "SFP permit list" },
 	{ 0,	"slowpath",	cmd_shadow,	"Slow path statistics" },
 	{ 0,	"snmp",		cmd_snmp,	"SNMP network statistics" },
-	{ 1,	"sfp-permit-list", cmd_sfp_permit_op, "SFP permit list" },
 	{ 2,    "storm-ctl",    cmd_storm_ctl_op, "Storm control commands" },
 	{ 0,    "switch",       cmd_switch_op,  "Switch op-mode commands" },
 	{ 0,	"vhost-client",	cmd_vhost_client,

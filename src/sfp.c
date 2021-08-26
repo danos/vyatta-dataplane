@@ -58,7 +58,7 @@
 #include <rte_dev_info.h>
 #include <transceiver.h>
 #include <ieee754.h>
-#include <sfp_permit_list.h>
+#include <transceiver.h>
 #include "protobuf.h"
 #include "protobuf/SFPMonitor.pb-c.h"
 

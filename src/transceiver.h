@@ -20,4 +20,10 @@ sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 int sfpd_open_socket(void);
 void sfpd_unsubscribe(void);
 
+#define SFP_PERMIT_CONFIG_FILE "/var/run/vyatta/sfp_permit.conf"
+
+int cmd_sfp_permit_op(FILE *f, int argc, char **argv);
+
+void sfpd_process_presence_update(void);
+
 #endif /* TRANSCEIVER_H */

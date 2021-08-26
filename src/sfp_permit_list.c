@@ -23,7 +23,6 @@
 #include "protobuf/SFPMonitor.pb-c.h"
 #include "util.h"
 
-#include "sfp_permit_list.h"
 #include "transceiver.h"
 #include "if/dpdk-eth/dpdk_eth_if.h"
 
