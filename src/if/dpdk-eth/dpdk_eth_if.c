@@ -716,6 +716,7 @@ static void dpdk_eth_if_softc_free_rcu(struct rcu_head *head)
 	if (sc->scd_vhost_info)
 		vhost_info_free(sc->scd_vhost_info);
 
+	free(sc->xcvr_info.eeprom_info.data);
 	rte_free(sc);
 }
 
@@ -1076,47 +1077,49 @@ dpdk_eth_if_show_state(struct ifnet *ifp, json_writer_t *wr)
 
 static void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, json_writer_t *wr)
 {
+	struct dpdk_eth_if_softc *sc = ifp->if_softc;
+	struct xcvr_info *xcvr_info;
 	struct rte_eth_dev_module_info module_info;
-	struct rte_dev_eeprom_info eeprom_info;
-	char *buf;
 	int rv;
 
+	if (!sc)
+		return;
+
+	xcvr_info = &sc->xcvr_info;
 	memset(&module_info, 0, sizeof(module_info));
 
 	rv = rte_eth_dev_get_module_info(ifp->if_port, &module_info);
+	if (rv || !module_info.eeprom_len)
+		return;
+
+	if (module_info.eeprom_len < MODULE_SFF_8436_AX_LEN)
+		module_info.eeprom_len = MODULE_SFF_8436_AX_LEN;
+
+	if (xcvr_info->eeprom_info.length != module_info.eeprom_len) {
+		free(xcvr_info->eeprom_info.data);
+		xcvr_info->eeprom_info.data = malloc(module_info.eeprom_len);
+		if (!xcvr_info->eeprom_info.data) {
+			DP_DEBUG(LINK, ERR, DATAPLANE,
+				 "Failed to allocate xcvr eeprom info buffer for %s\n",
+				 ifp->if_name);
+			xcvr_info->eeprom_info.length = 0;
+			return;
+		}
+		xcvr_info->eeprom_info.length = module_info.eeprom_len;
+		xcvr_info->eeprom_info.offset = 0;
+		xcvr_info->module_info.type = module_info.type;
+		xcvr_info->module_info.eeprom_len = module_info.eeprom_len;
+	}
+
+	rv = rte_eth_dev_get_module_eeprom(ifp->if_port, &xcvr_info->eeprom_info);
 	if (rv)
 		return;
-
-	eeprom_info.length =
-	module_info.eeprom_len < MODULE_SFF_8436_AX_LEN ?
-		module_info.eeprom_len : MODULE_SFF_8436_AX_LEN;
-
-	buf = malloc(eeprom_info.length);
-	if (!buf) {
-		DP_DEBUG(LINK, ERR, DATAPLANE,
-			"Failed to allocate xcvr eeprom info buffer\n");
-		return;
-	}
-	eeprom_info.data = buf;
-	eeprom_info.offset = 0;
-
-	rv = rte_eth_dev_get_module_eeprom(ifp->if_port, &eeprom_info);
-	if (rv) {
-		free(buf);
-		return;
-	}
-
-	if (!module_info.eeprom_len) {
-		free(buf);
-		return;
-	}
 
 	jsonw_name(wr, "xcvr_info");
 	jsonw_start_object(wr);
 	sfp_status((ifp->if_flags & IFF_UP ? true : false),
-		   &module_info, &eeprom_info, wr);
+		   &xcvr_info->module_info, &xcvr_info->eeprom_info, wr);
 	jsonw_end_object(wr);
-	free(buf);
 }
 
 static int

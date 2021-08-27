@@ -12,6 +12,11 @@
 #include <rte_dev_info.h>
 #include "if_var.h"
 
+struct xcvr_info {
+	struct rte_eth_dev_module_info module_info;
+	struct rte_dev_eeprom_info     eeprom_info;
+};
+
 void
 sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	   const struct rte_dev_eeprom_info *eeprom_info,

@@ -17,6 +17,7 @@
 #include "urcu.h"
 #include "compat.h"
 #include "fal_plugin.h"
+#include "transceiver.h"
 
 struct vhost_info;
 struct ifnet;
@@ -40,6 +41,9 @@ struct dpdk_eth_if_softc {
 	/* LAG configuration */
 	bool		     has_min_links;
 	uint16_t	     min_links;
+
+	/* transceiver information */
+	struct xcvr_info     xcvr_info;
 };
 
 void dpdk_eth_if_start_port(struct ifnet *ifp);
