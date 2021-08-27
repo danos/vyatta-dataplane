@@ -19,7 +19,7 @@ struct xcvr_info {
 
 void
 sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
-	   const struct rte_dev_eeprom_info *eeprom_info,
+	   const struct rte_dev_eeprom_info *eeprom_info, bool include_static,
 	   json_writer_t *wr);
 
 int sfpd_open_socket(void);

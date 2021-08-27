@@ -68,4 +68,7 @@ typedef bool (*dpdk_eth_if_walker_t)(struct ifnet *ifp, void *arg);
 
 void dpdk_eth_if_walk(dpdk_eth_if_walker_t walker, void *arg);
 
+void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, bool include_static,
+				json_writer_t *wr);
+
 #endif /* DPDK_ETH_IF_H */

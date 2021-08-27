@@ -2001,7 +2001,7 @@ static void print_sfp_status_byte(const struct rte_dev_eeprom_info *eeprom_info,
 static void
 print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		 const struct rte_dev_eeprom_info *eeprom_info,
-		 json_writer_t *wr)
+		 bool include_static, json_writer_t *wr)
 {
 	struct sfp_calibration_constants c_consts, *c_const_p;
 	uint8_t diag_type;
@@ -2021,21 +2021,25 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 
 	/* Transceiver type */
 	print_sfp_identifier(eeprom_info, wr);
-	print_sfp_ext_identifier(eeprom_info, wr);
-	print_sfp_transceiver_class(eeprom_info, wr);
-	print_sfp_connector(eeprom_info, wr);
-	print_sfp_vendor(module_info, eeprom_info, wr);
-	print_sfp_transceiver_descr(eeprom_info, wr);
-	print_sfp_br(eeprom_info, wr);
-	print_sfp_diag_type(eeprom_info, wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_OM4, "copper_len", wr);
-	print_sfp_encoding(eeprom_info, wr);
-	print_sfp_8472_compl(eeprom_info, wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_SMF, "smf_100", wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_SMF_KM, "smf_km", wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_625UM, "smf_om1", wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_50UM, "smf_om2", wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_OM3, "smf_om3", wr);
+
+	if (include_static) {
+		print_sfp_ext_identifier(eeprom_info, wr);
+		print_sfp_transceiver_class(eeprom_info, wr);
+		print_sfp_connector(eeprom_info, wr);
+		print_sfp_vendor(module_info, eeprom_info, wr);
+		print_sfp_transceiver_descr(eeprom_info, wr);
+		print_sfp_br(eeprom_info, wr);
+		print_sfp_diag_type(eeprom_info, wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_OM4, "copper_len", wr);
+		print_sfp_encoding(eeprom_info, wr);
+		print_sfp_8472_compl(eeprom_info, wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_SMF, "smf_100", wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_SMF_KM, "smf_km", wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_625UM, "smf_om1", wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_50UM, "smf_om2", wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_OM3, "smf_om3", wr);
+	}
+
 	/*
 	 * Request current measurements iff they are provided:
 	 */
@@ -2054,30 +2058,35 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		print_sfp_laser_bias(eeprom_info, c_const_p, wr);
 		print_sfp_status_byte(eeprom_info, wr);
 	}
-	print_sfp_thresholds(eeprom_info, wr);
+
+	if (include_static)
+		print_sfp_thresholds(eeprom_info, wr);
+
 	print_sfp_alarm_flags(eeprom_info, wr);
 	print_sfp_warning_flags(eeprom_info, wr);
 }
 
 static void
 print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
-		  json_writer_t *wr)
+		  bool include_static, json_writer_t *wr)
 {
 	/* Transceiver type */
 	print_qsfp_identifier(eeprom_info, wr);
-	print_qsfp_ext_identifier(eeprom_info, wr);
-	print_qsfp_transceiver_class(eeprom_info, wr);
-	print_qsfp_connector(eeprom_info, wr);
-	print_qsfp_vendor(eeprom_info, wr);
-	print_qsfp_encoding(eeprom_info, wr);
-	print_qsfp_rev_compliance(eeprom_info, wr);
-	print_qsfp_br(eeprom_info, wr);
 
-	print_qsfp_len(eeprom_info, SFF_8436_LEN_SMF_KM, "smf_km", wr);
-	print_qsfp_len(eeprom_info, SFF_8436_LEN_OM1, "smf_om1", wr);
-	print_qsfp_len(eeprom_info, SFF_8436_LEN_OM2, "smf_om2", wr);
-	print_qsfp_len(eeprom_info, SFF_8436_LEN_OM3, "smf_om3", wr);
+	if (include_static) {
+		print_qsfp_ext_identifier(eeprom_info, wr);
+		print_qsfp_transceiver_class(eeprom_info, wr);
+		print_qsfp_connector(eeprom_info, wr);
+		print_qsfp_vendor(eeprom_info, wr);
+		print_qsfp_encoding(eeprom_info, wr);
+		print_qsfp_rev_compliance(eeprom_info, wr);
+		print_qsfp_br(eeprom_info, wr);
 
+		print_qsfp_len(eeprom_info, SFF_8436_LEN_SMF_KM, "smf_km", wr);
+		print_qsfp_len(eeprom_info, SFF_8436_LEN_OM1, "smf_om1", wr);
+		print_qsfp_len(eeprom_info, SFF_8436_LEN_OM2, "smf_om2", wr);
+		print_qsfp_len(eeprom_info, SFF_8436_LEN_OM3, "smf_om3", wr);
+	}
 
 	/*
 	 * The standards in this area are not clear when the
@@ -2103,14 +2112,15 @@ print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 
 	print_qsfp_aw_flags(eeprom_info, wr);
 
-	print_qsfp_thresholds(eeprom_info, wr);
+	if (include_static)
+		print_qsfp_thresholds(eeprom_info, wr);
 }
 
 
 void
 sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	   const struct rte_dev_eeprom_info *eeprom_info,
-	   json_writer_t *wr)
+	   bool include_static, json_writer_t *wr)
 {
 	uint8_t id_byte;
 
@@ -2131,10 +2141,10 @@ sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	case SFF_8024_ID_QSFP:
 	case SFF_8024_ID_QSFPPLUS:
 	case SFF_8024_ID_QSFP28:
-		print_qsfp_status(up, eeprom_info, wr);
+		print_qsfp_status(up, eeprom_info, include_static, wr);
 		break;
 	default:
-		print_sfp_status(up, module_info, eeprom_info, wr);
+		print_sfp_status(up, module_info, eeprom_info, include_static, wr);
 	}
 }
 

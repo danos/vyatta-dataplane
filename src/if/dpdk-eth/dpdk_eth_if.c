@@ -1075,7 +1075,8 @@ dpdk_eth_if_show_state(struct ifnet *ifp, json_writer_t *wr)
 		jsonw_uint_field(wr, "port", ifp->if_port);
 }
 
-static void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, json_writer_t *wr)
+void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, bool include_static,
+				json_writer_t *wr)
 {
 	struct dpdk_eth_if_softc *sc = ifp->if_softc;
 	struct xcvr_info *xcvr_info;
@@ -1118,7 +1119,8 @@ static void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, json_writer_t *wr)
 	jsonw_name(wr, "xcvr_info");
 	jsonw_start_object(wr);
 	sfp_status((ifp->if_flags & IFF_UP ? true : false),
-		   &xcvr_info->module_info, &xcvr_info->eeprom_info, wr);
+		   &xcvr_info->module_info, &xcvr_info->eeprom_info,
+		   include_static, wr);
 	jsonw_end_object(wr);
 }
 
@@ -1143,7 +1145,7 @@ dpdk_eth_if_dump(struct ifnet *ifp, json_writer_t *wr,
 		dpdk_eth_if_show_state(ifp, wr);
 		break;
 	case IF_DS_STATE_VERBOSE:
-		dpdk_eth_if_show_xcvr_info(ifp, wr);
+		dpdk_eth_if_show_xcvr_info(ifp, true, wr);
 		break;
 	default:
 		break;
