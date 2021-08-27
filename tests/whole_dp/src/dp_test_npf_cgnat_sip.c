@@ -383,3 +383,62 @@ DP_START_TEST(sip3, test)
 
 } DP_END_TEST;
 
+/*
+ * sip4. Tests parsing and translating of SIP URIs
+ */
+DP_DECL_TEST_CASE(cgn_sip, sip4, NULL, NULL);
+DP_START_TEST(sip4, test)
+{
+	uint i;
+
+	for (i = 0; i < ARRAY_SIZE(uris); i++) {
+
+		struct bstr pre = BSTR_INIT;	/* string before the host */
+		struct bstr host = BSTR_INIT;	/* host string */
+		struct bstr port = BSTR_INIT;	/* port string */
+		struct bstr post = BSTR_INIT;	/* string after the host/port */
+		bool ok;
+		char str1[70];
+		char str2[70];
+
+		ok = csip_find_uri(&uris[i].orig, &pre, &host, &port, &post);
+
+		dp_test_fail_unless(uris[i].ok == ok, "\"%*.*s\" Expected %u, got %u",
+				    uris[i].orig.len, uris[i].orig.len, uris[i].orig.buf,
+				    uris[i].ok, ok);
+
+		/* Verify host and port have been extracted */
+		dp_test_fail_unless(bstr_eq(&uris[i].host, &host),
+				    "Host exp \"%s\", got \"%s\"\n",
+				    bstr_stop(&uris[i].host, str1, sizeof(str1)),
+				    bstr_stop(&host, str2, sizeof(str2)));
+
+		dp_test_fail_unless(bstr_eq(&uris[i].port, &port),
+				    "Port exp \"%s\", got \"%s\"\n",
+				    bstr_stop(&uris[i].port, str1, sizeof(str1)),
+				    bstr_stop(&port, str2, sizeof(str2)));
+
+		/*
+		 * Translate the line
+		 */
+		struct bstr new;
+		char buf[200];
+		struct bstr oaddr = BSTR_K("192.0.2.4");
+		struct bstr oport = BSTR_K("5060");
+		struct bstr taddr = BSTR_K("1.1.1.1");
+		struct bstr tport = BSTR_K("1024");
+
+		new = BSTR_INIT;
+		ok = bstr_attach_unmanaged(&new, buf, 0, sizeof(buf));
+		dp_test_fail_unless(ok, "error bstr_attach_unmanaged");
+
+		csip_find_and_translate_uri(&uris[i].orig, &new, &oaddr, &oport,
+					    &taddr, &tport);
+
+		dp_test_fail_unless(bstr_eq(&uris[i].trans, &new),
+				    "Translated line, exp \"%s\" got \"%s\"",
+				    bstr_stop(&uris[i].trans, str1, sizeof(str1)),
+				    bstr_stop(&new, str2, sizeof(str2)));
+	}
+
+} DP_END_TEST;
