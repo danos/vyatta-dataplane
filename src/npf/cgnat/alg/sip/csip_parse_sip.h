@@ -16,4 +16,7 @@ struct bstr;
 int csip_parse_start_line(struct bstr const *msg, enum csip_req *req,
 			  unsigned int *resp_code);
 
+bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
+		   struct bstr *port, struct bstr *post);
+
 #endif /* CSIP_PARSE_SIP_H */

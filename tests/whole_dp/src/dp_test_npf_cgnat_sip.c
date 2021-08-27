@@ -31,6 +31,19 @@
  *
  */
 
+/* Create a printable string in the provided buffer (similar to inet_ntop) */
+static const char *bstr_stop(struct bstr const *b, char *dst, int size)
+{
+	int len = b->len;
+
+	if (len >= size)
+		len = size-1;
+
+	snprintf(dst, size, "%*.*s", len, len, b->buf);
+
+	return dst;
+}
+
 DP_DECL_TEST_SUITE(cgn_sip);
 
 /*
@@ -146,3 +159,227 @@ DP_START_TEST(sip2, test)
 			    "Failed to identify Response code");
 
 } DP_END_TEST;
+
+/*
+ * Test strings containing SIP URIs
+ */
+struct ut_sip_uri {
+	const struct bstr orig;	/* original SIP msg line */
+	const struct bstr host;	/* host sub-string in orig */
+	const struct bstr port;	/* port sub-string in orig */
+	const struct bstr trans; /* SIP msg line after translation/copying */
+	bool ok;		/* Does orig contain a SIP URI? */
+};
+
+const struct ut_sip_uri uris[] = {
+	{ .orig = BSTR_K("sip:atlanta.com"),
+	  .host = BSTR_K("atlanta.com"),
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("sip:atlanta.com"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("sip:192.0.2.4"),
+	  .host = BSTR_K("192.0.2.4"),
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("sip:1.1.1.1"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("INVITE sip:192.0.2.4:5060 SIP/2.0\r\n"),
+	  .host = BSTR_K("192.0.2.4"),
+	  .port = BSTR_K("5060"),
+	  .trans = BSTR_K("INVITE sip:1.1.1.1:1024 SIP/2.0\r\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("INVITE sip:192.0.2.5:5060 SIP/2.0\r\n"),
+	  .host = BSTR_K("192.0.2.5"),
+	  .port = BSTR_K("5060"),
+	  .trans = BSTR_K("INVITE sip:192.0.2.5:1024 SIP/2.0\r\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("INVITE sip:192.0.2.4:5061 SIP/2.0\r\n"),
+	  .host = BSTR_K("192.0.2.4"),
+	  .port = BSTR_K("5061"),
+	  .trans = BSTR_K("INVITE sip:1.1.1.1:5061 SIP/2.0\r\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("sip:alice@atlanta.com"),
+	  .host = BSTR_K("atlanta.com"),
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("sip:alice@atlanta.com"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("INVITE sip:alice@192.0.2.4 SIP/2.0\r\n"),
+	  .host = BSTR_K("192.0.2.4"),
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("INVITE sip:alice@1.1.1.1 SIP/2.0\r\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("sip:alice@atlanta.com:5060"),
+	  .host = BSTR_K("atlanta.com"),
+	  .port = BSTR_K("5060"),
+	  .trans = BSTR_K("sip:alice@atlanta.com:1024"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("sip:alice@192.0.2.4:5060"),
+	  .host = BSTR_K("192.0.2.4"),
+	  .port = BSTR_K("5060"),
+	  .trans = BSTR_K("sip:alice@1.1.1.1:1024"),
+	  .ok = true },
+
+	{ .orig = BSTR_K(" sip:example.com:5060;tag=76341\r\n"),
+	  .host = BSTR_K("example.com"),
+	  .port = BSTR_K("5060"),
+	  .trans = BSTR_K(" sip:example.com:1024;tag=76341\r\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("<sip:example.com:321>;tag=76341\r\n"),
+	  .host = BSTR_K("example.com"),
+	  .port = BSTR_K("321"),
+	  .trans = BSTR_K("<sip:example.com:321>;tag=76341\r\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("<sip:192.0.2.4:321>;tag=76341\r\n"),
+	  .host = BSTR_K("192.0.2.4"),
+	  .port = BSTR_K("321"),
+	  .trans = BSTR_K("<sip:1.1.1.1:321>;tag=76341\r\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("sip:john:passwd@example.com;tag=76341\r\n"),
+	  .host = BSTR_K("example.com"),
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("sip:john:passwd@example.com;tag=76341\r\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("sip:john:passwd@192.0.2.4;tag=76341\r\n"),
+	  .host = BSTR_K("192.0.2.4"),
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("sip:john:passwd@1.1.1.1;tag=76341\r\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("sip:alice@atlanta.com\n\n"),
+	  .host = BSTR_K("atlanta.com"),
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("sip:alice@atlanta.com\n\n"),
+	  .ok = true },
+
+	{ .orig = BSTR_K("sip:alice.smith@192.0.2.4?subject=test\r\n"),
+	  .host = BSTR_K("192.0.2.4"),
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("sip:alice.smith@1.1.1.1?subject=test\r\n"),
+	  .ok = true },
+
+	/* do not translate if URI scheme is not 'sip' */
+	{ .orig = BSTR_K("INVITE foo:192.0.2.4:5060 SIP/2.0\r\n"),
+	  .host = BSTR_INIT,
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("INVITE foo:192.0.2.4:5060 SIP/2.0\r\n"),
+	  .ok = false },
+
+	/* do not translate if URI scheme is not 'sip' */
+	{ .orig = BSTR_K("INVITE foo:alice@192.0.2.4:5060 SIP/2.0\r\n"),
+	  .host = BSTR_INIT,
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("INVITE foo:alice@192.0.2.4:5060 SIP/2.0\r\n"),
+	  .ok = false },
+
+	/* do not translate IPv6 URI */
+	{ .orig = BSTR_K("sip:6000@[2620:0:2ef0:7070:250:60ff:fe03:32b7]:5060\r\n"),
+	  .host = BSTR_INIT,
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("sip:6000@[2620:0:2ef0:7070:250:60ff:fe03:32b7]:5060\r\n"),
+	  .ok = false },
+
+	/* do not translate IPv6 URI */
+	{ .orig = BSTR_K("sip:6000@[2620:0:2ef0:7070:250:60ff:fe03:32b7];tag=76341\r\n"),
+	  .host = BSTR_INIT,
+	  .port = BSTR_INIT,
+	  .trans = BSTR_K("sip:6000@[2620:0:2ef0:7070:250:60ff:fe03:32b7];tag=76341\r\n"),
+	  .ok = false },
+};
+
+/*
+ * sip3. Tests parsing of SIP URIs
+ */
+DP_DECL_TEST_CASE(cgn_sip, sip3, NULL, NULL);
+DP_START_TEST(sip3, test)
+{
+	uint i;
+
+	for (i = 0; i < ARRAY_SIZE(uris); i++) {
+
+		struct bstr pre = BSTR_INIT;	/* string before the host */
+		struct bstr host = BSTR_INIT;	/* host string */
+		struct bstr port = BSTR_INIT;	/* port string */
+		struct bstr post = BSTR_INIT;	/* string after the host/port */
+		char str1[70];
+		char str2[70];
+		bool ok;
+
+		ok = csip_find_uri(&uris[i].orig, &pre, &host, &port, &post);
+
+		dp_test_fail_unless(uris[i].ok == ok, "\"%*.*s\" Expected %u, got %u",
+				    uris[i].orig.len, uris[i].orig.len, uris[i].orig.buf,
+				    uris[i].ok, ok);
+
+		/* Verify host and port have been located */
+
+		dp_test_fail_unless(bstr_eq(&uris[i].host, &host),
+				    "Host exp \"%s\", got \"%s\"\n",
+				    bstr_stop(&uris[i].host, str1, sizeof(str1)),
+				    bstr_stop(&host, str2, sizeof(str2)));
+
+		dp_test_fail_unless(bstr_eq(&uris[i].port, &port),
+				    "Port exp \"%s\", got \"%s\"\n",
+				    bstr_stop(&uris[i].port, str1, sizeof(str1)),
+				    bstr_stop(&port, str2, sizeof(str2)));
+
+		/*
+		 * Re-constitute the line, and verify against original
+		 */
+		struct bstr b;
+		char buf[200];
+
+		b = BSTR_INIT;
+		ok = bstr_attach_unmanaged(&b, buf, 0, sizeof(buf));
+		dp_test_fail_unless(ok, "Failed to create unmanaged buffer");
+
+		if (pre.len > 0) {
+			ok = bstr_addbuf(&b, &pre);
+			dp_test_fail_unless(ok, "Failed to add pre \"%s\"",
+				bstr_stop(&pre, str1, sizeof(str1)));
+		}
+
+		if (host.len > 0) {
+			ok = bstr_addbuf(&b, &host);
+			dp_test_fail_unless(ok, "Failed to add host \"%s\" to \"%s\"",
+					    bstr_stop(&host, str1, sizeof(str1)),
+					    bstr_stop(&b, str2, sizeof(str2)));
+		}
+
+		if (port.len > 0) {
+			ok = bstr_addstr(&b, ":");
+			dp_test_fail_unless(ok, "Failed to add colon to \"%s\"",
+					    bstr_stop(&b, str1, sizeof(str1)));
+
+			ok = bstr_addbuf(&b, &port);
+			dp_test_fail_unless(ok, "Failed to add port \"%s\" to \"%s\"",
+					    bstr_stop(&port, str1, sizeof(str1)),
+					    bstr_stop(&b, str2, sizeof(str2)));
+		}
+
+		if (post.len > 0) {
+			ok = bstr_addbuf(&b, &post);
+			dp_test_fail_unless(ok, "Failed to add post \"%s\" to \"%s\"",
+					    bstr_stop(&post, str1, sizeof(str1)),
+					    bstr_stop(&b, str2, sizeof(str2)));
+		}
+
+		dp_test_fail_unless(bstr_eq(&uris[i].orig, &b),
+				    "Reconstituted line, exp \"%s\" got \"%s\"",
+				    bstr_stop(&uris[i].orig, str1, sizeof(str1)),
+				    bstr_stop(&b, str2, sizeof(str2)));
+
+	}
+
+} DP_END_TEST;
+
