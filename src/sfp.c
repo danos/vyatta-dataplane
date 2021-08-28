@@ -2363,9 +2363,14 @@ cmd_intf_sfp_status(struct ifnet *ifp, void *arg)
 {
 	struct dpdk_eth_if_softc *sc;
 	json_writer_t *wr = arg;
+	int rv;
 
 	sc = rcu_dereference(ifp->if_softc);
 	if (!sc)
+		return false;
+
+	rv = dpdk_eth_if_get_xcvr_info(ifp);
+	if (rv)
 		return false;
 
 	jsonw_start_object(wr);
@@ -2374,6 +2379,7 @@ cmd_intf_sfp_status(struct ifnet *ifp, void *arg)
 	dpdk_eth_if_show_xcvr_info(ifp, false, wr);
 
 	jsonw_end_object(wr);
+
 	return false;
 }
 

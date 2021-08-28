@@ -1075,8 +1075,40 @@ dpdk_eth_if_show_state(struct ifnet *ifp, json_writer_t *wr)
 		jsonw_uint_field(wr, "port", ifp->if_port);
 }
 
-void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, bool include_static,
-				json_writer_t *wr)
+static int
+dpdk_eth_if_validate_module_info(struct rte_eth_dev_module_info *module_info)
+{
+	if (!module_info->eeprom_len)
+		return -EINVAL;
+
+	switch (module_info->type) {
+	case RTE_ETH_MODULE_SFF_8079:
+		if (module_info->eeprom_len != RTE_ETH_MODULE_SFF_8079_LEN)
+			return -EINVAL;
+		break;
+
+	case RTE_ETH_MODULE_SFF_8472:
+		if (module_info->eeprom_len != RTE_ETH_MODULE_SFF_8472_LEN)
+			return -EINVAL;
+		break;
+
+	case RTE_ETH_MODULE_SFF_8636:
+		if (module_info->eeprom_len != RTE_ETH_MODULE_SFF_8636_LEN &&
+		    module_info->eeprom_len != RTE_ETH_MODULE_SFF_8636_MAX_LEN)
+			return -EINVAL;
+		break;
+
+	case  RTE_ETH_MODULE_SFF_8436:
+		if (module_info->eeprom_len != RTE_ETH_MODULE_SFF_8436_LEN &&
+		    module_info->eeprom_len != RTE_ETH_MODULE_SFF_8436_MAX_LEN)
+			return -EINVAL;
+		break;
+	}
+
+	return 0;
+}
+
+int dpdk_eth_if_get_xcvr_info(struct ifnet *ifp)
 {
 	struct dpdk_eth_if_softc *sc = ifp->if_softc;
 	struct xcvr_info *xcvr_info;
@@ -1084,17 +1116,18 @@ void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, bool include_static,
 	int rv;
 
 	if (!sc)
-		return;
+		return -ENOENT;
 
 	xcvr_info = &sc->xcvr_info;
 	memset(&module_info, 0, sizeof(module_info));
 
 	rv = rte_eth_dev_get_module_info(ifp->if_port, &module_info);
-	if (rv || !module_info.eeprom_len)
-		return;
+	if (rv)
+		return rv;
 
-	if (module_info.eeprom_len < MODULE_SFF_8436_AX_LEN)
-		module_info.eeprom_len = MODULE_SFF_8436_AX_LEN;
+	rv = dpdk_eth_if_validate_module_info(&module_info);
+	if (rv)
+		return rv;
 
 	if (xcvr_info->eeprom_info.length != module_info.eeprom_len) {
 		free(xcvr_info->eeprom_info.data);
@@ -1104,7 +1137,7 @@ void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, bool include_static,
 				 "Failed to allocate xcvr eeprom info buffer for %s\n",
 				 ifp->if_name);
 			xcvr_info->eeprom_info.length = 0;
-			return;
+			return -ENOMEM;
 		}
 		xcvr_info->eeprom_info.length = module_info.eeprom_len;
 		xcvr_info->eeprom_info.offset = 0;
@@ -1113,13 +1146,53 @@ void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, bool include_static,
 	}
 
 	rv = rte_eth_dev_get_module_eeprom(ifp->if_port, &xcvr_info->eeprom_info);
-	if (rv)
+	if (rv) {
+		DP_DEBUG(LINK, ERR, DATAPLANE,
+			 "Failed to get module EEPROM information for %s\n",
+			 ifp->if_name);
+		return rv;
+	}
+
+	return 0;
+}
+
+static const char *dpdk_eth_if_module_str(uint32_t type)
+{
+	switch (type) {
+	case RTE_ETH_MODULE_SFF_8079:
+		return "SFF_8079";
+
+	case  RTE_ETH_MODULE_SFF_8472:
+		return "SFF_8472";
+
+	case RTE_ETH_MODULE_SFF_8436:
+		return "SFF_8436";
+
+	case RTE_ETH_MODULE_SFF_8636:
+		return "SFF_8436";
+	}
+
+	return "Unknown";
+}
+
+void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, bool include_static,
+				json_writer_t *wr)
+{
+	struct dpdk_eth_if_softc *sc = ifp->if_softc;
+
+	if (!sc)
 		return;
 
 	jsonw_name(wr, "xcvr_info");
 	jsonw_start_object(wr);
+	if (include_static) {
+		jsonw_string_field(wr, "module_type",
+				   dpdk_eth_if_module_str(sc->xcvr_info.module_info.type));
+		jsonw_uint_field(wr, "eeprom_len",
+				 sc->xcvr_info.module_info.eeprom_len);
+	}
 	sfp_status((ifp->if_flags & IFF_UP ? true : false),
-		   &xcvr_info->module_info, &xcvr_info->eeprom_info,
+		   &sc->xcvr_info.module_info, &sc->xcvr_info.eeprom_info,
 		   include_static, wr);
 	jsonw_end_object(wr);
 }
@@ -1145,7 +1218,8 @@ dpdk_eth_if_dump(struct ifnet *ifp, json_writer_t *wr,
 		dpdk_eth_if_show_state(ifp, wr);
 		break;
 	case IF_DS_STATE_VERBOSE:
-		dpdk_eth_if_show_xcvr_info(ifp, true, wr);
+		if (!dpdk_eth_if_get_xcvr_info(ifp))
+			dpdk_eth_if_show_xcvr_info(ifp, true, wr);
 		break;
 	default:
 		break;
