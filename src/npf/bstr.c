@@ -312,13 +312,13 @@ bool bstr_split_term(bstr_t const *parent, uint8_t terminator, bstr_t *headp, bs
 	return bstr_split_length(parent, index + 1, headp, tailp);
 }
 
-bool bstr_split_prec(bstr_t const *parent, uint8_t preceeder, bstr_t *headp, bstr_t *tailp)
+bool bstr_split_prec(bstr_t const *parent, uint8_t preceder, bstr_t *headp, bstr_t *tailp)
 {
 	if (!parent->len) {
 		return false;
 	}
 
-	uint8_t *match = memrchr(parent->buf, preceeder, parent->len);
+	uint8_t *match = memrchr(parent->buf, preceder, parent->len);
 	if (!match) {
 		return false;
 	}

@@ -1,9 +1,18 @@
 /*
+ * Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+/*
  * Copyright 2010, Derek Fawcus.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
  */
+
+#ifndef BSTR_H
+#define BSTR_H
 
 /**
  * @file   bstr.h
@@ -83,9 +92,51 @@
  *     printf("%s", sb.buf);
  * }
  * @endcode
+ *
+ * Assumptions
+ *
+ * 1. The bstr 'buf' pointer in an unmanaged string is always expeced to be non-NULL
+ * 2. The bstr_split_x are not used for managed strings
+ *
+ * Thread Safety
+ *
+ * It is not expected that these routines will be used for manipulating the
+ * same instance of a bstr from more than one thread concurrently. That is not
+ * their use case.
+ *
+ * The output routines using managed buffers are not thread safe if the
+ * malloc/free implementation is not safe.  Managed buffers automatically
+ * grow, and one has to explicitly release the object. So they follow a
+ * malloc/free type of pattern.
+ *
+ * The unmanaged routines are safe. The unmanaged string forms were intended
+ * for use as stack allocated variables, and so vanish the same way as any
+ * other auto variables vanish, and pointers to such becoming invalid.
+ *
+ * For the unmanaged strings, the buffer is expected to be fixed somewhere,
+ * can not grow, and it allows for automatic deallocation as one is using
+ * entirely stack based stuff. i.e. one does not have to follow the
+ * malloc/free pattern.
+ *
+ * So one can have an on-stack backing buffer (of fixed size), and a struct
+ * bstr on stack using it. Once the functions return, everything is cleaned
+ * up. If one chooses to malloc the buffer for an unmanaged buffer, then one
+ * is responsible for eventually freeing that buffer.
+ *
+ * If unmanaged bstrs and their backing buffer are *not* stack varables then
+ * it is up to the user to ensure correct and safe useage.
+ *
+ *
+ * Unmanaged Strings Use-case
+ *
+ * One or more bstrs will be used to reference the payload of *coalesced*
+ * packet buffers (rte_mbuf).  These bstrs will be local variables, so the
+ * view over the buffer will be automatically cleaned up when the function
+ * returns.
+ *
+ * Alternatively, the bstrs may be in a per-core packet cache, and as such
+ * will only be valid for the duration of the packet.
  */
-#ifndef __BSTR_H__
-#define __BSTR_H__
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -108,6 +159,8 @@ typedef struct bstr_t_ bstr_t;
  * The buf and len members may be accessed.
  *
  * Hence this is a semi-opaque struct.
+ *
+ * The buf pointer is always expected to be non-NULL.
  */
 #if BSTR_SMALL
 struct bstr_t_ {
@@ -161,38 +214,68 @@ extern uint8_t bstr_empty[];
 /*
  * create/destroy/management
  */
+
+/* Initialise to empty string, with initial capacity for length */
 bool bstr_init(bstr_t *bs, int length_hint);
+
+/* Free any existing backing store, and reinitialise to empty string */
 void bstr_release(bstr_t *bs);
+
+/* Extract backing buffer and length from a passed in string */
 void *bstr_detach(bstr_t *bs, int *length, bool *managed);
+
+/* Attach a malloc'ed backing buffer to a dynamic string. Freed by bstr_release() */
 bool bstr_attach_managed(bstr_t *bs, void *str, int str_len, int alloc);
+
+/* Attach a backing buffer to a static string. Caller responsible for freeing */
 bool bstr_attach_unmanaged(bstr_t *bs, void *str, int str_len, int alloc);
 
 /*
  * length related
  */
+
+/* How much available (unused) space does a string have */
 int bstr_avail(bstr_t *bs);
+
+/* Ensure that a string has space for extra bytes; if dynamic possibly reallocate backing buffer */
 bool bstr_grow(bstr_t *bs, int extra);
+
+/* Set the length of the string, not altering its contents, but terminating at the length */
 bool bstr_setlen(bstr_t *bs, int len);
+
+/* Set the string to zero length */
 #define bstr_reset(sb) bstr_setlen(sb, 0)
 
 /*
  * content stuff
  */
+
+/* Add a single byte to the end */
 bool bstr_addch(bstr_t *bs, uint8_t c);
+
+/* Add str_len bytes pointed to by str */
 bool bstr_add(bstr_t *bs, void const *str, int str_len);
+
+/* Add bytes from a NULL terminated c-string to a string (c.f. strcat) */
 bool bstr_addstr(bstr_t *bs, char const *cstr);
+
+/* Add bytes from one string to end of another (c.f. strcat) */
 bool bstr_addbuf(bstr_t *bs, bstr_t const *bs2);
 
+/* Add formatted byte to a string (c.f. snprint) */
 bool bstr_addf(bstr_t *bs, char const *fmt, ...)
 	__attribute__((format(__printf__,2,3)));
 
+/* Are the two strings identical */
 bool bstr_eq(bstr_t const *bs1, bstr_t const *bs2);
+
+/* Does the text start with the provided prefix */
 bool bstr_prefix(bstr_t const *text, bstr_t const *prefix);
 
-/* Find offset of first occurence of a needle in a haystack */
+/* Find offset of first occurrence of a needle in a haystack (c.f. strstr) */
 int bstr_find(bstr_t const *hs, bstr_t const *nd);
 
-/* Compare first and last bytes */
+/* Does the string start with this character */
 static inline bool bstr_first_eq(bstr_t const *bs, uint8_t val)
 {
 	if (!bs->len)
@@ -200,6 +283,7 @@ static inline bool bstr_first_eq(bstr_t const *bs, uint8_t val)
 	return (bs->buf[0] == val);
 }
 
+/* Does the string end with this character */
 static inline bool bstr_last_eq(bstr_t const *bs, uint8_t val)
 {
 	if (!bs->len)
@@ -232,13 +316,23 @@ static inline bool bstr_un_drop_left(bstr_t *bs, uint32_t n)
  * These do not guarantee the trailing '\0' terminator.
  */
 
+/* Initialise two sub-strings (slices) over the parent; head being len bytes, tail the rest */
 bool bstr_split_length(bstr_t const *parent, uint32_t len, bstr_t *headp, bstr_t *tailp);
 
 /* Create unmanaged splits across 'parent', head end at terminator */
-bool bstr_split_term(bstr_t const *parent, uint8_t terminator, bstr_t *headp, bstr_t *tailp);
-bool bstr_split_terms(bstr_t const *parent, bstr_t const *terminators, bstr_t *headp, bstr_t *tailp);
-/* Create unmanaged splits across 'parent', tail start after last preceeder */
-bool bstr_split_prec(bstr_t const *parent, uint8_t preceeder, bstr_t *headp, bstr_t *tailp);
-bool bstr_split_precs(bstr_t const *parent, bstr_t const *preceeders, bstr_t *headp, bstr_t *tailp);
 
-#endif /* __BSTR_H__ */
+/* Initialise two sub-strings (slices) over the parent at the matching terminator, if found */
+bool bstr_split_term(bstr_t const *parent, uint8_t terminator, bstr_t *headp, bstr_t *tailp);
+
+/* bstr_split_term() for the first matching terminator */
+bool bstr_split_terms(bstr_t const *parent, bstr_t const *terminators, bstr_t *headp, bstr_t *tailp);
+
+/* Create unmanaged splits across 'parent', tail start after last preceeder */
+
+/* Akin to strrchr() - split_term() from end of string */
+bool bstr_split_prec(bstr_t const *parent, uint8_t preceder, bstr_t *headp, bstr_t *tailp);
+
+/* Akin to strtok() backwards; split_terms() from end of string */
+bool bstr_split_precs(bstr_t const *parent, bstr_t const *preceders, bstr_t *headp, bstr_t *tailp);
+
+#endif /* BSTR_H */
