@@ -1,3 +1,16 @@
+vyatta-dataplane (3.13.44) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * Add missing Copyright and SPDX-License-Identifier
+
+  [ Gaurav Gehani ]
+  * vyatta-dataplane: fix coverity errors
+
+  [ Gavin Shearer ]
+  * Fix issue of missing ndpi session info for NetFlow
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 31 Aug 2021 13:37:59 +0100
+
 vyatta-dataplane (3.13.43) unstable; urgency=medium
 
   [ ck407g ]
