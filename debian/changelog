@@ -1,3 +1,13 @@
+vyatta-dataplane (3.14.18) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * codechecks: correct algorithm
+
+  [ Srinivas Narayan ]
+  * 3.13.45
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 31 Aug 2021 17:25:04 +0100
+
 vyatta-dataplane (3.14.17) unstable; urgency=medium
 
   [ Paul Aitken ]
