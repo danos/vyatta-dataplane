@@ -1,3 +1,11 @@
+vyatta-dataplane (3.14.16) unstable; urgency=medium
+
+  [ Derek Fawcus ]
+  * Import counted string routines.
+  * Silence clang-tidy.
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 31 Aug 2021 13:40:29 +0100
+
 vyatta-dataplane (3.14.15) unstable; urgency=medium
 
   [ ck407g ]
