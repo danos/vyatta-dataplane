@@ -1,7 +1,11 @@
 /*-
- * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.
+ * All rights reserved.
+ *
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
  */
 
 #include <rte_malloc.h>

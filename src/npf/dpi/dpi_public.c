@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -61,6 +61,7 @@ dp_dpi_enable(struct ifnet *ifp)
 		return ret;
 
 	dpi_if_feature_enable(ifp);
+	dpi_refcount_inc(dpi_global_engine());
 	dpi_enabled_count++;
 
 	return 0;
@@ -73,6 +74,7 @@ dp_dpi_disable(struct ifnet *ifp)
 	if (!ifp)
 		return -EINVAL;
 
+	dpi_refcount_dec(dpi_global_engine());
 	dpi_if_feature_disable(ifp);
 	assert(dpi_enabled_count > 0);
 	if (dpi_enabled_count > 0)
