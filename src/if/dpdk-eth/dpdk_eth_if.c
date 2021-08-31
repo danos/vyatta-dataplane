@@ -28,8 +28,6 @@
 #include "vplane_log.h"
 #include "transceiver.h"
 
-#define MODULE_SFF_8436_AX_LEN 640
-
 typedef int (*reconfigure_port_cb_fn)(struct ifnet *ifp,
 				      struct rte_eth_conf *dev_conf);
 

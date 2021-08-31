@@ -2015,8 +2015,7 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		return;
 
 	/*
-	 * Read monitoring data IFF it is supplied AND is
-	 * internally calibrated
+	 * Read monitoring data IFF it is supplied
 	 */
 	if (diag_type & SFF_8472_DDM_DONE)
 		do_diag = 1;
@@ -2059,13 +2058,13 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		print_sfp_tx_power(up, eeprom_info, c_const_p, wr);
 		print_sfp_laser_bias(eeprom_info, c_const_p, wr);
 		print_sfp_status_byte(eeprom_info, wr);
+
+		if (include_static)
+			print_sfp_thresholds(eeprom_info, wr);
+
+		print_sfp_alarm_flags(eeprom_info, wr);
+		print_sfp_warning_flags(eeprom_info, wr);
 	}
-
-	if (include_static)
-		print_sfp_thresholds(eeprom_info, wr);
-
-	print_sfp_alarm_flags(eeprom_info, wr);
-	print_sfp_warning_flags(eeprom_info, wr);
 }
 
 static void
@@ -2364,6 +2363,7 @@ cmd_intf_sfp_status(struct ifnet *ifp, void *arg)
 	struct dpdk_eth_if_softc *sc;
 	json_writer_t *wr = arg;
 	int rv;
+	uint8_t diag_type = 0;
 
 	sc = rcu_dereference(ifp->if_softc);
 	if (!sc)
@@ -2372,6 +2372,30 @@ cmd_intf_sfp_status(struct ifnet *ifp, void *arg)
 	rv = dpdk_eth_if_get_xcvr_info(ifp);
 	if (rv)
 		return false;
+
+	switch (sc->xcvr_info.module_info.type) {
+	case RTE_ETH_MODULE_SFF_8472:
+		/* Read diagnostic monitoring type */
+		if (get_eeprom_data(&sc->xcvr_info.eeprom_info, SFF_8472_BASE,
+				    SFF_8472_DIAG_TYPE, 1, &diag_type))
+			return false;
+
+		/*
+		 * Read monitoring data IFF it is supplied
+		 */
+		if (!(diag_type & SFF_8472_DDM_DONE))
+			return false;
+
+		break;
+
+	case RTE_ETH_MODULE_SFF_8436:
+	case RTE_ETH_MODULE_SFF_8636:
+		/* Some monitoring flags always present */
+		break;
+
+	default:
+		return false;
+	}
 
 	jsonw_start_object(wr);
 
