@@ -6,9 +6,6 @@
 # SPDX-License-Identifier: LGPL-2.1-only
 #
 
-# $1: TARGET - most likely "origin/master"
-# $2: SOURCE - most likely "bugfix/foo" or "feature/bar"
-
 usage () {
     echo "Usage: $(basename $0) target source" >&2
     echo "target: something like 'origin/master'" >&2
@@ -17,19 +14,26 @@ usage () {
 
 [ "$#" -ne 2 ] && { usage; exit 1; }
 
+TARGET="$1" # most likely "origin/master"
+SOURCE="$2" # most likely "bugfix/foo" or "feature/bar"
+
+GIT_SOURCE_HASH=$(git rev-list -n1 "$SOURCE")
+GIT_TARGET_HASH=$(git rev-list -n1 "$TARGET")
+GIT_MERGE_BASE=$(git merge-base $GIT_SOURCE_HASH $GIT_TARGET_HASH)
+
 
 # Look for commits without "VRVDR" or "VYINT"
 # in the last line of the log message.
 #
 missing=""
-for commit in `git log --oneline $1..$2 --pretty=format:"%h"`; do
+for commit in `git log --oneline "$GIT_MERGE_BASE..$GIT_SOURCE_HASH" --pretty=format:"%h"`; do
     if [ "`git show $commit --quiet | tail -n 1 | egrep 'VRVDR|VYINT'`" == "" ]; then
         missing+="`git show --pretty=oneline --abbrev-commit --quiet $commit`\n"
     fi
 done
 
 if [ -n "$missing" ]; then
-    echo -e "* Please add the VRVDR or VYINT jira ID to these commits:\n$missing\n"
+    echo -e "* Please add the VRVDR or VYINT jira ID to these commits:\n$missing"
 fi
 
 
@@ -78,7 +82,7 @@ fi
 IGN_FILES="debian\/.*\n.*\.conf$\n.*\.md$\nCODEOWNERS\n^.git.*\n.*\.gitignore\n^\.clang-.*\n\.editorconfig\niwyu.mapping\nLICENSE\ndataplane\.section-ordering\nmeson_options.txt\nsrc\/sff8436.h\nsrc\/sff8472.h"
 
 # All files in the diff, except deleted files.
-all_files=`git diff --diff-filter=d --name-only --format=format:'' $1..$2`
+all_files=`git diff --diff-filter=d --name-only --format=format:'' "$GIT_MERGE_BASE..$GIT_SOURCE_HASH"`
 
 # Strip out the ignored files.
 check_files=`sed -e "$(sed 's:.*:s/&//ig:' <<< $(echo -e $IGN_FILES))" <<< $all_files`

@@ -349,6 +349,13 @@ vyatta-dataplane (3.14.1) unstable; urgency=medium
 
  -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 08 Jul 2021 17:49:37 +0100
 
+vyatta-dataplane (3.13.45) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * codechecks: correct algorithm
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 31 Aug 2021 17:20:15 +0100
+
 vyatta-dataplane (3.13.44) unstable; urgency=medium
 
   [ Paul Aitken ]
