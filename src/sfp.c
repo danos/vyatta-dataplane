@@ -1937,24 +1937,28 @@ print_qsfp_aw_flags(const struct rte_dev_eeprom_info *eeprom_info,
 	jsonw_start_array(wr);
 
 	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "channel", 1);
 	convert_qsfp_aw_flags(wr, tx_bias_aw_chan_upper_flags, xbuf_tx_bias_12);
 	convert_qsfp_aw_flags(wr, tx_pwr_aw_chan_upper_flags, xbuf_tx_pow_12);
 	convert_qsfp_aw_flags(wr, rx_pwr_aw_chan_upper_flags, xbuf_rx_pow_12);
 	jsonw_end_object(wr);
 
 	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "channel", 2);
 	convert_qsfp_aw_flags(wr, tx_bias_aw_chan_lower_flags, xbuf_tx_bias_12);
 	convert_qsfp_aw_flags(wr, tx_pwr_aw_chan_lower_flags, xbuf_tx_pow_12);
 	convert_qsfp_aw_flags(wr, rx_pwr_aw_chan_lower_flags, xbuf_rx_pow_12);
 	jsonw_end_object(wr);
 
 	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "channel", 3);
 	convert_qsfp_aw_flags(wr, tx_bias_aw_chan_upper_flags, xbuf_tx_bias_34);
 	convert_qsfp_aw_flags(wr, tx_pwr_aw_chan_upper_flags, xbuf_tx_pow_34);
 	convert_qsfp_aw_flags(wr, rx_pwr_aw_chan_upper_flags, xbuf_rx_pow_34);
 	jsonw_end_object(wr);
 
 	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "channel", 4);
 	convert_qsfp_aw_flags(wr, tx_bias_aw_chan_lower_flags, xbuf_tx_bias_34);
 	convert_qsfp_aw_flags(wr, tx_pwr_aw_chan_lower_flags, xbuf_tx_pow_34);
 	convert_qsfp_aw_flags(wr, rx_pwr_aw_chan_lower_flags, xbuf_rx_pow_34);
@@ -2101,6 +2105,7 @@ print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 	jsonw_start_array(wr);
 	for (int i = 0; i < 4; i++) {
 		jsonw_start_object(wr);
+		jsonw_uint_field(wr, "channel", i+1);
 		print_qsfp_rx_power(eeprom_info, wr, i);
 		print_qsfp_tx_power(up, eeprom_info, wr, i);
 		print_qsfp_laser_bias(eeprom_info, wr, i);
