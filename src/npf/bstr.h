@@ -269,6 +269,8 @@ bool bstr_prefix(struct bstr const *text, struct bstr const *prefix);
 /* Find offset of first occurrence of a needle in a haystack (c.f. strstr) */
 int bstr_find_str(struct bstr const *hs, struct bstr const *nd);
 
+int bstr_find_term(struct bstr const *parent, uint8_t terminator);
+
 /* Does the string start with this character */
 static inline bool bstr_first_eq(struct bstr const *bs, uint8_t val)
 {
@@ -339,5 +341,11 @@ bool bstr_split_prec(struct bstr const *parent, uint8_t preceder,
 /* Akin to strtok() backwards; split_terms() from end of string */
 bool bstr_split_precs(struct bstr const *parent, struct bstr const *preceders,
 		      struct bstr *headp, struct bstr *tailp);
+
+bool bstr_split_after_substr(struct bstr const *parent, struct bstr const *sub,
+			     struct bstr *headp, struct bstr *tailp);
+
+bool bstr_split_before_substr(struct bstr const *parent, struct bstr const *sub,
+			      struct bstr *headp, struct bstr *tailp);
 
 #endif /* BSTR_H */

@@ -304,11 +304,9 @@ bool bstr_split_term(struct bstr const *parent, uint8_t terminator,
 		return false;
 	}
 
-	uint8_t *match = memchr(parent->buf, terminator, parent->len);
-	if (!match)
+	int index = bstr_find_term(parent, terminator);
+	if (index < 0)
 		return false;
-
-	uint32_t index = match - parent->buf;
 
 	return bstr_split_length(parent, index + 1, headp, tailp);
 }
@@ -328,6 +326,7 @@ bool bstr_split_prec(struct bstr const *parent, uint8_t preceder,
 	return bstr_split_length(parent, index + 1, headp, tailp);
 }
 
+/* Terminator will be first char in tail */
 bool bstr_split_terms(struct bstr const *parent, struct bstr const *terms,
 		      struct bstr *headp, struct bstr *tailp)
 {
@@ -350,7 +349,29 @@ bool bstr_split_terms(struct bstr const *parent, struct bstr const *terms,
 	return false;
 
 found:
-	return bstr_split_length(parent, pi + 1, headp, tailp);
+	return bstr_split_length(parent, pi, headp, tailp);
+}
+
+bool bstr_split_after_substr(struct bstr const *parent, struct bstr const *sub,
+			     struct bstr *headp, struct bstr *tailp)
+{
+	int offset = bstr_find_str(parent, sub);
+
+	if (offset < 0)
+		return false;
+
+	return bstr_split_length(parent, offset + sub->len, headp, tailp);
+}
+
+bool bstr_split_before_substr(struct bstr const *parent, struct bstr const *sub,
+			      struct bstr *headp, struct bstr *tailp)
+{
+	int offset = bstr_find_str(parent, sub);
+
+	if (offset < 0)
+		return false;
+
+	return bstr_split_length(parent, offset, headp, tailp);
 }
 
 bool bstr_split_precs(struct bstr const *parent, struct bstr const *precs,
@@ -395,3 +416,11 @@ int bstr_find_str(struct bstr const *hs, struct bstr const *nd)
 	return match - hs->buf;
 }
 
+int bstr_find_term(struct bstr const *parent, uint8_t terminator)
+{
+	uint8_t *match = memchr(parent->buf, terminator, parent->len);
+	if (!match)
+		return -1;
+
+	return match - parent->buf;
+}
