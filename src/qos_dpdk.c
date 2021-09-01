@@ -685,7 +685,10 @@ int qos_npf_classify(struct ifnet *ifp, const struct sched_info *qinfo,
 	/* Decide which queue to map to. Note that we only use the PCP map when
 	 * the user hasn't configured a DSCP map but has configured a PCP map.
 	 */
-	if (vlan != 0 && !qmap->dscp_enabled && qmap->pcp_enabled) {
+	if (qmap->local_priority &&
+		ether_type == htons(RTE_ETHER_TYPE_ARP)) {
+		q = qmap->local_priority_queue;
+	} else if (vlan != 0 && !qmap->dscp_enabled && qmap->pcp_enabled) {
 		q = qmap->pcp2q[pcp];
 	} else {
 		if (ether_type == htons(RTE_ETHER_TYPE_IPV4))
