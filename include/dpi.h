@@ -1,7 +1,7 @@
 /*
  * Public APIs for DPI.
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -53,5 +53,8 @@ bool dp_dpi_is_enabled(void);
  * is not yet complete DPI_APP_UNDETERMINED can be returned.
  */
 uint32_t dp_dpi_get_app_id(struct rte_mbuf *mbuf);
+
+/* Return the L7 DPI application ID which means DPI is not available. */
+uint32_t dp_dpi_not_available_app_id(void);
 
 #endif /* VYATTA_DATAPLANE_DPI_H */
