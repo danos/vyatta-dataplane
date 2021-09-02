@@ -394,6 +394,28 @@ static struct _nv voltage_alarm_warn_flags[] = {
 	{ 0x00,  NULL }
 };
 
+/* all values above 0xa correspond to copper SFPs */
+#define QSFP_DEV_TECH_COPPER_MIN 0xa
+
+static struct _nv sff_8636_dev_tech[] = {
+	{ 0x0, "850_nm_vcsel" },
+	{ 0x1, "1310_nm_vcsel" },
+	{ 0x2, "1550_nm_vcsel" },
+	{ 0x3, "1310_nm_fp" },
+	{ 0x4, "1310_nm_dfb" },
+	{ 0x5, "1550_nm_dfb" },
+	{ 0x6, "1310_nm_eml" },
+	{ 0x7, "1550_nm_eml" },
+	{ 0x8, "others" },
+	{ 0x9, "1490_nm_dfb" },
+	{ 0xa, "copper_unequalized" },
+	{ 0xb, "copper_passive_equalized" },
+	{ 0xc, "copper_dual_equalizer" },
+	{ 0xd, "copper_far_equalizer" },
+	{ 0xe, "copper_near_equalizer" },
+	{ 0xf, "copper_linear_equalizer" },
+};
+
 #define SFP_CALIB_CONST_RX_PWR_SIZE    4
 #define SFP_CALIB_CONST_RX_PWR_CNT     5
 #define SFP_CALIB_CONST_SL_OFF_START   0x4c
@@ -951,6 +973,40 @@ print_sfp_vendor_date(const struct rte_dev_eeprom_info *eeprom_info,
 		return;
 
 	convert_sff_date(wr, xbuf);
+}
+
+static void
+get_qsfp_device_tech(const struct rte_dev_eeprom_info *eeprom_info,
+		     uint8_t *dev_tech)
+{
+	uint8_t xbuf = 0;
+
+	if (get_eeprom_data(eeprom_info, SFF_8436_BASE, SFF_8436_DEV_TECH,
+			    1, (uint8_t *)&xbuf))
+		return;
+
+	/*
+	 * SFF 8436 Table 37
+	 * device technology is in upper nibble
+	 */
+	xbuf = (xbuf & 0xf0) >> 4;
+
+	*dev_tech = xbuf;
+}
+
+static void
+print_qsfp_device_tech(const struct rte_dev_eeprom_info *eeprom_info,
+		       json_writer_t *wr)
+{
+	const char *x;
+	uint8_t dev_tech = 0;
+
+	get_qsfp_device_tech(eeprom_info, &dev_tech);
+
+	x = find_value(sff_8636_dev_tech, dev_tech);
+
+	if (x)
+		jsonw_string_field(wr, "dev_tech", x);
 }
 
 static void
@@ -1684,13 +1740,15 @@ print_qsfp_rx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 
 static void
 print_qsfp_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
-		     json_writer_t *wr)
+		      uint8_t dev_tech, json_writer_t *wr)
 {
 	print_qsfp_temp_thresholds(eeprom_info, wr);
 	print_qsfp_voltage_thresholds(eeprom_info, wr);
-	print_qsfp_bias_thresholds(eeprom_info, wr);
-	print_qsfp_tx_power_thresholds(eeprom_info, wr);
-	print_qsfp_rx_power_thresholds(eeprom_info, wr);
+	if (dev_tech < QSFP_DEV_TECH_COPPER_MIN) {
+		print_qsfp_bias_thresholds(eeprom_info, wr);
+		print_qsfp_tx_power_thresholds(eeprom_info, wr);
+		print_qsfp_rx_power_thresholds(eeprom_info, wr);
+	}
 }
 
 static void
@@ -2075,6 +2133,8 @@ static void
 print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 		  bool include_static, json_writer_t *wr)
 {
+	uint8_t dev_tech = 0;
+
 	/* Transceiver type */
 	print_qsfp_identifier(eeprom_info, wr);
 
@@ -2082,6 +2142,7 @@ print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 		print_qsfp_ext_identifier(eeprom_info, wr);
 		print_qsfp_transceiver_class(eeprom_info, wr);
 		print_qsfp_connector(eeprom_info, wr);
+		print_qsfp_device_tech(eeprom_info, wr);
 		print_qsfp_vendor(eeprom_info, wr);
 		print_qsfp_encoding(eeprom_info, wr);
 		print_qsfp_rev_compliance(eeprom_info, wr);
@@ -2101,25 +2162,27 @@ print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 	 */
 	print_qsfp_temp(eeprom_info, wr);
 	print_qsfp_voltage(eeprom_info, wr);
-	jsonw_name(wr, "measured_values");
-	jsonw_start_array(wr);
-	for (int i = 0; i < 4; i++) {
-		jsonw_start_object(wr);
-		jsonw_uint_field(wr, "channel", i+1);
-		print_qsfp_rx_power(eeprom_info, wr, i);
-		print_qsfp_tx_power(up, eeprom_info, wr, i);
-		print_qsfp_laser_bias(eeprom_info, wr, i);
-		jsonw_end_object(wr);
-	}
-	jsonw_end_array(wr);
 
+	get_qsfp_device_tech(eeprom_info, &dev_tech);
+	if (dev_tech < QSFP_DEV_TECH_COPPER_MIN) {
+		jsonw_name(wr, "measured_values");
+		jsonw_start_array(wr);
+		for (int i = 0; i < 4; i++) {
+			jsonw_start_object(wr);
+			jsonw_uint_field(wr, "channel", i+1);
+			print_qsfp_rx_power(eeprom_info, wr, i);
+			print_qsfp_tx_power(up, eeprom_info, wr, i);
+			print_qsfp_laser_bias(eeprom_info, wr, i);
+			jsonw_end_object(wr);
+		}
+		jsonw_end_array(wr);
+		print_qsfp_aw_flags(eeprom_info, wr);
+	}
 	print_qsfp_temp_aw_flags(eeprom_info, wr);
 	print_qsfp_voltage_aw_flags(eeprom_info, wr);
 
-	print_qsfp_aw_flags(eeprom_info, wr);
-
 	if (include_static)
-		print_qsfp_thresholds(eeprom_info, wr);
+		print_qsfp_thresholds(eeprom_info, dev_tech, wr);
 }
 
 
