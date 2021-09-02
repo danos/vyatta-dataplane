@@ -442,3 +442,232 @@ DP_START_TEST(sip4, test)
 	}
 
 } DP_END_TEST;
+
+
+#define CGN_SIP_TEST1_SZ 1
+
+const char *sipd1_pre_cgnat[CGN_SIP_TEST1_SZ] = {
+	/*
+	 * 0. INVITE. Forward (inside)
+	 */
+	"INVITE sip:B.Boss@22.22.22.2 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"Record-Route: <sip:1.1.1.2;lr>\r\n"
+	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
+	"To: B.Boss <sip:B.Boss@work.co.uk>\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"User-agent: Cisco-SIPGateway/IOS-12.x\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:workman@1.1.1.2>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Max-forwards: 70\r\n"
+	"Subject: About That Power Outage...\r\n"
+	"Content-Length: 168\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=Workman 2890844526 2890844526 IN IP4 1.1.1.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 1.1.1.2\r\n"
+	"t=0 0\r\n"
+	"m=audio 10000 RTP/AVP 0\r\n"
+	"a=rtcp:10001 IN IP4 1.1.1.2\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+};
+
+/*
+ * Only the 'From' line is translated in this example.
+ */
+const char *sipd1_post_cgnat_x[CGN_SIP_TEST1_SZ] = {
+	/*
+	 * 0. INVITE. Forward (outside)
+	 */
+	"INVITE sip:B.Boss@22.22.22.2 SIP/2.0\r\n"
+	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
+	"Record-Route: <sip:1.1.1.2;lr>\r\n"
+	"From: A. Workman <sip:workman@30.30.30.2>;tag=76341\r\n"
+	"To: B.Boss <sip:B.Boss@work.co.uk>\r\n"
+	"Call-ID: j2qu348ek2328ws\r\n"
+	"User-agent: Cisco-SIPGateway/IOS-12.x\r\n"
+	"CSeq: 1 INVITE\r\n"
+	"Contact: <sip:workman@1.1.1.2>\r\n"
+	"Content-Type: application/sdp\r\n"
+	"Max-forwards: 70\r\n"
+	"Subject: About That Power Outage...\r\n"
+	"Content-Length: 168\r\n"
+	"\r\n"
+	"v=0\r\n"
+	"o=Workman 2890844526 2890844526 IN IP4 1.1.1.2\r\n"
+	"s=Phone Call\r\n"
+	"c=IN IP4 1.1.1.2\r\n"
+	"t=0 0\r\n"
+	"m=audio 10000 RTP/AVP 0\r\n"
+	"a=rtcp:10001 IN IP4 1.1.1.2\r\n"
+	"a=rtpmap:0 PCMU/8000\r\n",
+};
+
+#define SIP_BSTR_MAX	100
+#define SIP_BSTR_SZ	(SIP_BSTR_MAX + 1)
+
+/*
+ * sip5.  Tests splitting a SIP message into an array of 'lines'.
+ */
+DP_DECL_TEST_CASE(cgn_sip, sip5, NULL, NULL);
+DP_START_TEST(sip5, test)
+{
+	struct bstr orig = BSTR_INIT;
+	char orig_buf[2000];
+	bool ok;
+
+	struct {
+		struct csip_lines_meta meta;
+		struct bstr arr[SIP_BSTR_SZ];
+	} line_array;
+
+	line_array.meta.used = 0;
+	line_array.meta.capacity = ARRAY_SIZE(line_array.arr);
+
+	struct csip_lines *sip_lines = (struct csip_lines *)&line_array;
+
+	/*
+	 * A real message would be in a packet buffer, not a const string, so
+	 * copy it to orig_buf.  This is necessary since bstr_attach_unmanaged
+	 * adds a '\0'.
+	 */
+	dp_test_fail_unless(strlen(sipd1_pre_cgnat[0]) < sizeof(orig_buf) - 15,
+		"orig_buf is too small for the SIP msg");
+
+	memcpy(orig_buf, sipd1_pre_cgnat[0], strlen(sipd1_pre_cgnat[0]));
+
+	/* Set 'orig' bstr to point to the SIP msg in 'orig_buf' */
+
+	ok = bstr_attach_unmanaged(&orig, orig_buf, strlen(sipd1_pre_cgnat[0]),
+				   sizeof(orig_buf));
+	dp_test_fail_unless(ok, "Failed to create bstr 'orig' from SIP msg");
+
+	/* Check orig and the SIP message are identical */
+
+	dp_test_fail_unless(strlen(sipd1_pre_cgnat[0]) == (uint)orig.len,
+			    "Expected %lu, got %d", strlen(sipd1_pre_cgnat[0]), orig.len);
+	dp_test_fail_unless(!memcmp(sipd1_pre_cgnat[0], orig.buf, orig.len),
+			    "bstr 'orig' not same as SIP msg");
+
+	/*
+	 * Parse SIP message and store each line as a bstr in the sip_lines[]
+	 * array.
+	 */
+	ok = csip_split_lines(&orig, sip_lines);
+	dp_test_fail_unless(ok, "Failed to split lines");
+
+	dp_test_fail_unless(sip_lines->m.used == 22,
+			    "Expected 22 lines, got %u", sip_lines->m.used);
+
+} DP_END_TEST;
+
+
+/*
+ * sip6.  This test demonstrates how a SIP Invite message would be parsed and
+ * translated.
+ */
+DP_DECL_TEST_CASE(cgn_sip, sip6, NULL, NULL);
+DP_START_TEST(sip6, test)
+{
+	struct bstr orig = BSTR_INIT;
+	char orig_buf[2000];
+	bool ok;
+	uint32_t i;
+
+	struct {
+		struct csip_lines_meta meta;
+		struct bstr arr[SIP_BSTR_SZ];
+	} line_array;
+
+	line_array.meta.used = 0;
+	line_array.meta.capacity = ARRAY_SIZE(line_array.arr);
+
+	struct csip_lines *sip_lines = (struct csip_lines *)&line_array;
+
+	/*
+	 * A real message would be in a packet buffer, not a const string, so
+	 * copy it to orig_buf.  This is necessary since bstr_attach_unmanaged
+	 * adds a '\0'.
+	 */
+	dp_test_fail_unless(strlen(sipd1_pre_cgnat[0]) < sizeof(orig_buf) - 15,
+		"orig_buf is too small for the SIP msg");
+
+	memcpy(orig_buf, sipd1_pre_cgnat[0], strlen(sipd1_pre_cgnat[0]));
+
+	/* Set 'orig' bstr to point to the SIP msg in 'orig_buf' */
+
+	ok = bstr_attach_unmanaged(&orig, orig_buf, strlen(sipd1_pre_cgnat[0]),
+				   sizeof(orig_buf));
+	dp_test_fail_unless(ok, "Failed to create bstr 'orig' from SIP msg");
+
+	/* Check orig and the SIP message are identical */
+
+	dp_test_fail_unless(strlen(sipd1_pre_cgnat[0]) == (uint)orig.len,
+			    "Expected %lu, got %d", strlen(sipd1_pre_cgnat[0]), orig.len);
+	dp_test_fail_unless(!memcmp(sipd1_pre_cgnat[0], orig.buf, orig.len),
+			    "bstr 'orig' not same as SIP msg");
+
+	/*
+	 * Parse SIP message and store each line as a bstr in the sip_lines[]
+	 * array.
+	 */
+	ok = csip_split_lines(&orig, sip_lines);
+	dp_test_fail_unless(ok, "Failed to split lines");
+
+	dp_test_fail_unless(sip_lines->m.used == 22,
+			    "Expected 22 lines, got %u", sip_lines->m.used);
+
+
+	/*
+	 * For each line of orig SIP message, translate the 'From' line and
+	 * copy remaining lines into a new buffer.
+	 */
+	const struct bstr from = BSTR_K("From:");
+	struct bstr oaddr = BSTR_K("1.1.1.2");
+	struct bstr oport = BSTR_K("5060");
+	struct bstr taddr = BSTR_K("30.30.30.2");
+	struct bstr tport = BSTR_K("1024");
+	struct bstr *lines = sip_lines->lines;
+	uint32_t nlines = sip_lines->m.used;
+	char new_buf[2000];
+	struct bstr new;
+	int offs;
+
+	/* Create a counted string using new_buf[] storage */
+	ok = bstr_attach_unmanaged(&new, new_buf, 0, sizeof(new_buf));
+	dp_test_fail_unless(ok, "Failed to create bstr 'new'");
+
+	for (i = 0; i < nlines; i++) {
+
+		/* Look for 'From' header */
+		offs = bstr_find_str(&lines[i], &from);
+
+		/* We expect the 'From' string at the start of the line */
+		if (offs == 0) {
+			ok = csip_find_and_translate_uri(&lines[i], &new,
+							 &oaddr, &oport, &taddr, &tport);
+			dp_test_fail_unless(ok, "Failed to translate 'From'");
+		} else {
+			ok = bstr_addbuf(&new, &lines[i]);
+			dp_test_fail_unless(ok, "Failed to copy line");
+		}
+	}
+
+	/*
+	 * Copmare new message with the expected translated message
+	 */
+	char str1[1000];
+	char str2[1000];
+	struct bstr trans = {.buf = (uint8_t *)(sipd1_post_cgnat_x[0]),
+			     .len = strlen(sipd1_post_cgnat_x[0]),
+			     .allocated = strlen(sipd1_post_cgnat_x[0]) + 1};
+
+	dp_test_fail_unless(bstr_eq(&trans, &new),
+			    "Translated line, exp \"%s\" got \"%s\"",
+			    bstr_stop(&trans, str1, sizeof(str1)),
+			    bstr_stop(&new, str2, sizeof(str2)));
+
+} DP_END_TEST;
+

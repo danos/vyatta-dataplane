@@ -117,3 +117,68 @@ bool csip_get_line(struct bstr const *parent, struct bstr *headp, struct bstr *t
 
 	return true;
 }
+
+/*
+ * Split a SIP message up into an array of lines.
+ *
+ * The number of lines found is written to 'sip_lines->m.used'.  In addition,
+ * the array element after the last line is set to BSTR_INIT in order to
+ * delimit the end of the array entries.
+ *
+ * The SIP message we are interested in are in one of two format:
+ *
+ * SIP start-line
+ * SIP headers lines
+ *
+ * or
+ *
+ * SIP start-line
+ * SIP header lines
+ * blank line (CRLF only)
+ * SDP header lines
+ *
+ * Only SIP header lines use continuation lines, so csip_get_hline is used for
+ * these.
+ */
+bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
+{
+	struct bstr *lines = sip_lines->lines;
+	struct bstr head, tail;
+	uint32_t max_capacity;
+	uint32_t i;
+
+	/* Allow for an empty line at end of array */
+	max_capacity = sip_lines->m.capacity - 1;
+
+	/* Request or Response Start line */
+	if (!csip_get_line(msg, &lines[0], &tail)) {
+		lines[0] = BSTR_INIT;
+		return false;
+	}
+
+	/* SIP header lines */
+	for (i = 1, head = tail; i < max_capacity; i++, head = tail) {
+		if (!csip_get_hline(&head, &lines[i], &tail)) {
+			/* End of input.  Return success. */
+			sip_lines->m.used = i;
+			lines[i] = BSTR_INIT;
+			return true;
+		}
+
+		if (lines[i].len == SIP_SEPARATOR_SZ)
+			break;
+	}
+
+	/* SDP header lines */
+	for (i++, head = tail; i < max_capacity; i++, head = tail)
+		if (!csip_get_line(&head, &lines[i], &tail)) {
+			/* End of input.  Return success. */
+			sip_lines->m.used = i;
+			lines[i] = BSTR_INIT;
+			return true;
+		}
+
+	/* out of space */
+	lines[0] = BSTR_INIT;
+	return false;
+}
