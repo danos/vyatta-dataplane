@@ -2271,10 +2271,11 @@ static int sfpd_notify_recv(void *arg)
 {
 	zmq_msg_t sfpd_msg, sfpd_hdr;
 	zsock_t *sock = arg;
-	const char *hdr, *data;
+	const char *hdr, *data, *status_msg_hdr;
 	uint32_t len;
 	int rc;
 	errno = 0;
+	status_msg_hdr = "SFPDSTATUS_MSG";
 
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		 "SFPd: Notification\n");
@@ -2299,13 +2300,34 @@ static int sfpd_notify_recv(void *arg)
 		goto end;
 	}
 
-	if (strncmp("MSG_TYPE_2", hdr, strlen("MSG_TYPE_2")) == 0) {
-		data = zmq_msg_data(&sfpd_msg);
-		len = zmq_msg_size(&sfpd_msg);
+	if (strncmp("SFPDSTATUS_NOTIFY", hdr, strlen("SFPDSTATUS_NOTIFY")) == 0) {
+		zmq_setsockopt(sock, ZMQ_SUBSCRIBE, status_msg_hdr, strlen(status_msg_hdr));
 
-		RTE_LOG(INFO, DATAPLANE,
-			 "SFPd: MSG_TYPE_2 data:%p len:%d\n",
-			 data, len);
+		rc = sfpd_msg_recv(sock, &sfpd_hdr, &sfpd_msg);
+
+		if (rc != 0) {
+			zmq_msg_close(&sfpd_hdr);
+			return -1;
+		}
+
+		hdr = zmq_msg_data(&sfpd_hdr);
+
+		if (strncmp(status_msg_hdr, hdr, strlen(status_msg_hdr)) == 0) {
+			data = zmq_msg_data(&sfpd_msg);
+			len = zmq_msg_size(&sfpd_msg);
+
+			SFPStatusList *sfp_msg =
+				sfpstatus_list__unpack(NULL, len, (uint8_t *) data);
+
+			for (size_t i = 0; i < sfp_msg->n_sfp; i++) {
+				SFPStatusList__SFP *current = sfp_msg->sfp[i];
+				printf("INTERFACE: %s\n", current->name);
+			}
+			RTE_LOG(INFO, DATAPLANE,
+				"SFPd: SFPDSTATUS_NOTIFY data:%p len:%d\n",
+				data, len);
+		}
+
 		goto end;
 	}
 
