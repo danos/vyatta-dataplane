@@ -1,3 +1,13 @@
+vyatta-dataplane (3.14.19) unstable; urgency=medium
+
+  [ Aidan Gallagher ]
+  * Place ARP frames on priority local queue
+
+  [ Gavin Shearer ]
+  * dpi: add API dp_dpi_not_available_app_id()
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 06 Sep 2021 11:13:50 +0100
+
 vyatta-dataplane (3.14.18) unstable; urgency=medium
 
   [ Paul Aitken ]
