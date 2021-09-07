@@ -271,6 +271,31 @@ bool bstr_prefix(struct bstr const *text, struct bstr const *prefix)
 	return (memcmp(text->buf, prefix->buf, prefix->len) == 0);
 }
 
+static char ascii_toupper(char v)
+{
+	if (v >= 'a' && v <= 'z')
+		return v - ('a' - 'A');
+	return v;
+}
+
+/*
+ * Does the text start with the provided prefix. Performs a byte-by-byte
+ * comparison, ignoring the case of the characters.
+ */
+bool bstr_prefix_ascii_case(struct bstr const *text, struct bstr const *prefix)
+{
+	int i;
+
+	if (text->len < prefix->len)
+		return false;
+
+	for (i = 0; i < prefix->len; i++)
+		if (ascii_toupper(text->buf[i]) != ascii_toupper(prefix->buf[i]))
+			return false;
+
+	return true;
+}
+
 bool bstr_split_length(struct bstr const *parent, uint32_t len,
 		       struct bstr *headp, struct bstr *tailp)
 {

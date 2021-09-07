@@ -125,3 +125,21 @@ DP_START_TEST(bstr2, test)
 			    b.len, b.len, b.buf);
 
 } DP_END_TEST;
+
+/*
+ * bstr3. Tests bstr_prefix_ascii_case
+ */
+DP_DECL_TEST_CASE(bstr, bstr3, NULL, NULL);
+DP_START_TEST(bstr3, test)
+{
+	struct bstr b1 = BSTR_K("Call-ID:");
+	struct bstr b2 = BSTR_K("call-id :");
+	bool ok;
+
+	ok = bstr_prefix_ascii_case(&b1, BSTRL("Call-ID"));
+	dp_test_fail_unless(ok, "error bstr_prefix_ascii_case");
+
+	ok = bstr_prefix_ascii_case(&b2, BSTRL("Call-ID"));
+	dp_test_fail_unless(ok, "error bstr_prefix_ascii_case");
+
+} DP_END_TEST;

@@ -266,6 +266,9 @@ bool bstr_eq(struct bstr const *bs1, struct bstr const *bs2);
 /* Does the text start with the provided prefix */
 bool bstr_prefix(struct bstr const *text, struct bstr const *prefix);
 
+/* Does the text start with the provided prefix */
+bool bstr_prefix_ascii_case(struct bstr const *text, struct bstr const *prefix);
+
 /* Find offset of first occurrence of a needle in a haystack (c.f. strstr) */
 int bstr_find_str(struct bstr const *hs, struct bstr const *nd);
 
@@ -291,6 +294,16 @@ static inline bool bstr_last_eq(struct bstr const *bs, uint8_t val)
 static inline bool bstr_penultimate_eq(struct bstr const *text, uint8_t val)
 {
 	return text->len >= 2 && text->buf[text->len - 2] == val;
+}
+
+/* Get one byte from a string */
+static inline bool bstr_get_byte(struct bstr const *bs, int index, uint8_t *rv)
+{
+	if (index >= bs->len)
+		return false;
+
+	*rv = bs->buf[index];
+	return true;
 }
 
 /* Drop bytes from the end */
