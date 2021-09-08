@@ -98,6 +98,7 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _Z28LAGConfig_LagMode_descriptorv@Base 3.13.6
  _Z28NbrResConfig_Prot_descriptorv@Base 3.13.6
  _Z28Route_PayloadType_descriptorv@Base 3.13.6
+ _Z28SfpPermitConfig_Mode_IsValidi@Base 3.13.45
  _Z28TCPMSSConfig_MTUType_IsValidi@Base 3.13.6
  _Z28VFPSetConfig_VFPType_IsValidi@Base 3.13.6
  _Z29BreakoutConfig_Action_IsValidi@Base 3.13.6
@@ -122,6 +123,7 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _Z31PortAllocationEventType_IsValidi@Base 3.13.6
  _Z31RuleCounter_CounterType_IsValidi@Base 3.13.6
  _Z31SfpPermitConfig_Logging_IsValidi@Base 3.13.34
+ _Z31SfpPermitConfig_Mode_descriptorv@Base 3.13.45
  _Z31TCPMSSConfig_MTUType_descriptorv@Base 3.13.6
  _Z31TWAMPSessionCreate_Mode_IsValidi@Base 3.13.34
  _Z31VFPSetConfig_VFPType_descriptorv@Base 3.13.6
@@ -152,7 +154,6 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _Z35GPCCounter_CounterFormat_descriptorv@Base 3.13.6
  _Z35GPCTable_FeatureLocation_descriptorv@Base 3.13.6
  _Z35ICMPRateLimConfig_Action_descriptorv@Base 3.13.34
- _Z35SfpPermitConfig_Enforcement_IsValidi@Base 3.13.34
  _Z36CryptoPolicyConfig_Action_descriptorv@Base 3.13.6
  _Z36RuleAction_PacketDecision_descriptorv@Base 3.13.6
  _Z37FeatureAffinityConfig_Feature_IsValidi@Base 3.13.6
@@ -160,7 +161,6 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _Z37LAGConfig_LacpPeriodicRate_descriptorv@Base 3.13.6
  _Z37TCPMSSConfig_AddressFamily_descriptorv@Base 3.13.6
  _Z37XConnectConfig_CommandType_descriptorv@Base 3.13.6
- _Z38SfpPermitConfig_Enforcement_descriptorv@Base 3.13.34
  _Z40FeatureAffinityConfig_Feature_descriptorv@Base 3.13.6
  _ZN10GArpConfig10SharedCtorEv@Base 3.13.6
  _ZN10GArpConfig10SharedDtorEv@Base 3.13.6
@@ -839,15 +839,13 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN15SfpPermitConfig11Logging_MINE@Base 3.13.34
  _ZN15SfpPermitConfig11clear_mtypeEv@Base 3.13.34
  _ZN15SfpPermitConfig12InternalSwapEPS_@Base 3.13.34
- _ZN15SfpPermitConfig15Enforcement_MAXE@Base 3.13.34
- _ZN15SfpPermitConfig15Enforcement_MINE@Base 3.13.34
+ _ZN15SfpPermitConfig14Mode_ARRAYSIZEE@Base 3.13.45
  _ZN15SfpPermitConfig16Action_ARRAYSIZEE@Base 3.13.34
  _ZN15SfpPermitConfig16default_instanceEv@Base 3.13.34
  _ZN15SfpPermitConfig16kListFieldNumberE@Base 3.13.34
  _ZN15SfpPermitConfig17Logging_ARRAYSIZEE@Base 3.13.34
  _ZN15SfpPermitConfig18set_allocated_listEP26SfpPermitConfig_ListConfig@Base 3.13.34
  _ZN15SfpPermitConfig20kMismatchFieldNumberE@Base 3.13.34
- _ZN15SfpPermitConfig21Enforcement_ARRAYSIZEE@Base 3.13.34
  _ZN15SfpPermitConfig21InitAsDefaultInstanceEv@Base 3.13.34
  _ZN15SfpPermitConfig22set_allocated_mismatchEP30SfpPermitConfig_MisMatchConfig@Base 3.13.34
  _ZN15SfpPermitConfig27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
@@ -861,6 +859,8 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN15SfpPermitConfig7MONITORE@Base 3.13.34
  _ZN15SfpPermitConfig8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34
  _ZN15SfpPermitConfig8CopyFromERKS_@Base 3.13.34
+ _ZN15SfpPermitConfig8Mode_MAXE@Base 3.13.45
+ _ZN15SfpPermitConfig8Mode_MINE@Base 3.13.45
  _ZN15SfpPermitConfig9MergeFromERKN6google8protobuf7MessageE@Base 3.13.34
  _ZN15SfpPermitConfig9MergeFromERKS_@Base 3.13.34
  _ZN15SfpPermitConfigC1ERKS_@Base 3.13.34
@@ -1721,11 +1721,12 @@ libvyatta-dataplane-proto.so.1 libvyatta-dataplane-proto1 #MINVER#
  _ZN30SfpPermitConfig_MisMatchConfig10descriptorEv@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig12InternalSwapEPS_@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig16default_instanceEv@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig16kModeFieldNumberE@Base 3.13.45
  _ZN30SfpPermitConfig_MisMatchConfig18kActionFieldNumberE@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig19kLoggingFieldNumberE@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig21InitAsDefaultInstanceEv@Base 3.13.34
- _ZN30SfpPermitConfig_MisMatchConfig23kEnforcementFieldNumberE@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig27MergePartialFromCodedStreamEPN6google8protobuf2io16CodedInputStreamE@Base 3.13.34
+ _ZN30SfpPermitConfig_MisMatchConfig36kEffectiveEnforcementTimeFieldNumberE@Base 3.13.45
  _ZN30SfpPermitConfig_MisMatchConfig4SwapEPS_@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig5ClearEv@Base 3.13.34
  _ZN30SfpPermitConfig_MisMatchConfig8CopyFromERKN6google8protobuf7MessageE@Base 3.13.34

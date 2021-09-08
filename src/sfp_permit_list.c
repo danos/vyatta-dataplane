@@ -53,7 +53,6 @@ static void sfp_scan_for_holddown(void);
 
 struct sfp_mismatch_global {
 	bool logging_enabled;
-	bool enforcement_enabled;
 };
 
 struct sfp_mismatch_global sfp_mismatch_cfg;
@@ -131,15 +130,17 @@ uint32_t boot_scan_end_time; /* secs since boot */
 static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp);
 
 struct sfp_permit_config sfp_permit_cfg;
-static bool effective_enforcement_time_initialised;
 
 struct cds_lfht *sfp_ports_tbl;
-
-static bool permit_mismatch_cfg_not_present = true;
 
 static inline uint32_t sfpd_record_hash(struct sfp_intf_record *rec)
 {
 	return rec->port;
+}
+
+static bool sfp_permit_enforcement_enabled(void)
+{
+	return sfp_permit_cfg.effective_enforcement_time != 0;
 }
 
 static int sfpd_record_match_fn(struct cds_lfht_node *node,
@@ -194,100 +195,6 @@ sfpd_record_find(struct cds_lfht *hash_tbl, uint32_t port)
 		return caa_container_of(node, struct sfp_intf_record, hnode);
 
 	return NULL;
-}
-
-static int sfp_parse_sfp_permit_config(void *user, const char *section,
-	       const char *name, const char *value)
-{
-	struct sfp_permit_config *permit_config = user;
-
-	if (streq(section, "Effective_Enforcement_Time"))
-		if (streq(name, "time")) {
-			permit_config->effective_enforcement_time = atoi(value);
-			return 1;
-		}
-
-	RTE_LOG(ERR, DATAPLANE,
-		"Failed to parse SFP permit config\n");
-
-	return 0;
-}
-
-static void sfp_write_sfp_permit_config(struct sfp_permit_config *config)
-{
-	FILE *f;
-
-	f = fopen(SFP_PERMIT_CONFIG_FILE, "w");
-	if (f) {
-		fprintf(f, "[Effective_Enforcement_Time]\n");
-		fprintf(f, "time = %u\n", config->effective_enforcement_time);
-		fclose(f);
-	} else {
-		RTE_LOG(ERR, DATAPLANE,
-			"Can't write to the SPF permit configuration file %s: %s\n",
-			SFP_PERMIT_CONFIG_FILE, strerror(errno));
-	}
-}
-
-static void set_effective_enforcement_time(const uint32_t time)
-{
-	sfp_permit_cfg.effective_enforcement_time = time;
-	sfp_write_sfp_permit_config(&sfp_permit_cfg);
-	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		"SFP-PL: Setting effective enforcement time to %us\n",
-		time);
-}
-
-static int sfp_read_sfp_permit_config(struct sfp_permit_config *config)
-{
-	FILE *f;
-	int rc;
-
-	f = fopen(SFP_PERMIT_CONFIG_FILE, "r");
-	if (f == NULL) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Can't read the SPF permit configuration file %s: %s\n",
-			SFP_PERMIT_CONFIG_FILE, strerror(errno));
-		return 1;
-	}
-	rc = ini_parse_file(f, sfp_parse_sfp_permit_config, config);
-	fclose(f);
-
-	if (rc) {
-		RTE_LOG(ERR, DATAPLANE,
-			"Can't parse SFP permit configuration file: %s\n",
-			SFP_PERMIT_CONFIG_FILE);
-		return 1;
-	}
-
-	return 0;
-}
-
-static void init_effective_enforcement_time(void)
-{
-	struct sfp_permit_config config;
-	int ret;
-
-	if (effective_enforcement_time_initialised)
-		return;
-	effective_enforcement_time_initialised = true;
-
-	ret = sfp_read_sfp_permit_config(&config);
-	if (ret == 0)
-		/* set the effective_enforcement_time to the value read from the file
-		 * (eg: dataplane restart event).
-		 */
-		sfp_permit_cfg.effective_enforcement_time = config.effective_enforcement_time;
-	else
-		/* set the effective_enforcement_time to system uptime if the file
-		 * is not found (reboot event or a file parsing issue)
-		 */
-		set_effective_enforcement_time(system_uptime());
-
-	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		"SFP-PL: Initialised effective enforcement time to %us\n ",
-		sfp_permit_cfg.effective_enforcement_time);
-
 }
 
 static void
@@ -578,33 +485,25 @@ sfp_permit_mismatch_cfg(const SfpPermitConfig__MisMatchConfig *mismatch)
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		"SFP-PL: mismatch logging %u\n", mismatch->logging);
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-		"SFP-PL: mismatch enforcement %u\n", mismatch->enforcement);
+		"SFP-PL: mismatch mode %u\n", mismatch->mode);
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		"SFP-PL: mismatch action %s\n",
 		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET ? "SET" : "DELETE");
 
-	permit_mismatch_cfg_not_present =
-		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET ? false : true;
-
 	if (mismatch->logging == SFP_PERMIT_CONFIG__LOGGING__ENABLE &&
-		!permit_mismatch_cfg_not_present)
+		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET)
 		sfp_mismatch_cfg.logging_enabled = true;
 	else
 		sfp_mismatch_cfg.logging_enabled = false;
 
-	if (mismatch->enforcement == SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE &&
-		!permit_mismatch_cfg_not_present) {
-		if (!sfp_mismatch_cfg.enforcement_enabled) {
-			/* record time of transition from monitor to enforcement */
-			uint32_t time_now = system_uptime();
-			if (effective_enforcement_time_initialised)
-				set_effective_enforcement_time(time_now);
-			else
-				init_effective_enforcement_time();
-		}
-		sfp_mismatch_cfg.enforcement_enabled = true;
+	if (mismatch->mode == SFP_PERMIT_CONFIG__MODE__ENFORCE) {
+		sfp_permit_cfg.effective_enforcement_time =
+			mismatch->effective_enforcement_time;
+		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+			 "SFP-PL: Setting effective enforcement time to %us\n",
+			 mismatch->effective_enforcement_time);
 	} else {
-		sfp_mismatch_cfg.enforcement_enabled = false;
+		sfp_permit_cfg.effective_enforcement_time = 0;
 		sfp_clear_all_holddown();
 	}
 
@@ -629,8 +528,7 @@ static void dump_lists(void)
 
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		 "   enforcement enabled %s\n",
-		 sfp_mismatch_cfg.enforcement_enabled
-			 == true ? "True" : "False");
+		 sfp_permit_enforcement_enabled() ? "True" : "False");
 
 	if (cds_list_empty(&sfp_permit_list_head)) {
 		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
@@ -968,11 +866,11 @@ static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp)
 	} else {
 		sfp->status = SFP_STATUS_UNAPPROVED;
 		uint32_t effective_enforcement_time =
-			(effective_enforcement_time_initialised &&
+			(sfp_permit_enforcement_enabled() &&
 			sfp_permit_cfg.effective_enforcement_time > boot_scan_end_time) ?
 			sfp_permit_cfg.effective_enforcement_time : boot_scan_end_time;
 
-		if (sfp_mismatch_cfg.enforcement_enabled &&
+		if (sfp_permit_enforcement_enabled() &&
 			sfp->time_of_detection > effective_enforcement_time) {
 
 			sfp->action = SFP_ACTION_DISABLED;
@@ -1155,7 +1053,7 @@ static bool sfp_permit_config_present(void)
 	else
 		permit_list_empty = true;
 
-	return permit_mismatch_cfg_not_present && permit_list_empty;
+	return sfp_permit_enforcement_enabled() && permit_list_empty;
 }
 
 static void sfp_permit_dump_devices(json_writer_t *wr)
@@ -1172,8 +1070,9 @@ static void sfp_permit_dump_devices(json_writer_t *wr)
 
 	uint32_t uptime  = system_uptime();
 
-	if (sfp_mismatch_cfg.enforcement_enabled && uptime >= boot_scan_end_time)
-		jsonw_bool_field(wr, "enforcement-mode", sfp_mismatch_cfg.enforcement_enabled);
+	if (sfp_permit_enforcement_enabled() && uptime >= boot_scan_end_time)
+		jsonw_bool_field(wr, "enforcement-mode",
+				 sfp_permit_enforcement_enabled());
 	else
 		jsonw_bool_field(wr, "enforcement-mode", false);
 
@@ -1276,7 +1175,7 @@ static void sfp_permit_dump_mismatch(json_writer_t *wr)
 	jsonw_string_field(wr, "logging enabled",
 			   YES_NO(sfp_mismatch_cfg.logging_enabled));
 	jsonw_string_field(wr, "enforcement enabled",
-			   YES_NO(sfp_mismatch_cfg.enforcement_enabled));
+			   YES_NO(sfp_permit_enforcement_enabled()));
 	jsonw_end_object(wr);
 }
 
