@@ -47,6 +47,31 @@ static inline bool addr_store(struct ip_addr *addr, uint32_t type,
 	return false;
 }
 
+static inline bool addr_same(const struct ip_addr *addr1,
+			     const struct ip_addr *addr2)
+{
+	if (!addr1 || !addr2)
+		return false;
+
+	if (addr1->type != addr2->type)
+		return false;
+
+	switch (addr1->type) {
+	case AF_INET:
+		if (addr1->address.ip_v4.s_addr == addr2->address.ip_v4.s_addr)
+			return true;
+		break;
+	case AF_INET6:
+		if (IN6_ARE_ADDR_EQUAL(&addr1->address.ip_v6,
+				       &addr2->address.ip_v6))
+			return true;
+		break;
+	default:
+		break;
+	}
+	return false;
+}
+
 /*
  * Turn a prefix length into a network mask
  */

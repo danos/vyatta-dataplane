@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2020-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -107,6 +107,17 @@ void nexthop_destroy(struct rcu_head *head);
 int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		uint8_t proto, enum fal_next_hop_group_use use,
 		uint32_t *slot);
+
+/*
+ * nexthop summary count for the specified nexthop address
+ */
+struct nexthop_summary_ctx {
+	const struct ip_addr *addr;
+	uint32_t count;
+};
+
+void nexthop_summary_count_cb(const struct next_hop_list *nextl,
+			      struct nexthop_summary_ctx *rt_ctx);
 
 /*
  * Create a next_hop based on the given information.  This nexthop will then
