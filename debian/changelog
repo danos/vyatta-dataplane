@@ -1,3 +1,10 @@
+vyatta-dataplane (3.14.20) unstable; urgency=medium
+
+  [ ck407g ]
+  * Update IPV6 neighbour discovery state based on upper layer reachability
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 08 Sep 2021 08:51:27 +0100
+
 vyatta-dataplane (3.14.19) unstable; urgency=medium
 
   [ Aidan Gallagher ]
