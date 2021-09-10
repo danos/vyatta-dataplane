@@ -267,7 +267,7 @@ bool bstr_eq(struct bstr const *bs1, struct bstr const *bs2);
 bool bstr_prefix(struct bstr const *text, struct bstr const *prefix);
 
 /* Find offset of first occurrence of a needle in a haystack (c.f. strstr) */
-int bstr_find(struct bstr const *hs, struct bstr const *nd);
+int bstr_find_str(struct bstr const *hs, struct bstr const *nd);
 
 /* Does the string start with this character */
 static inline bool bstr_first_eq(struct bstr const *bs, uint8_t val)
@@ -283,6 +283,12 @@ static inline bool bstr_last_eq(struct bstr const *bs, uint8_t val)
 	if (!bs->len)
 		return false;
 	return (bs->buf[bs->len - 1] == val);
+}
+
+/* Does the penultimate byte match val? */
+static inline bool bstr_penultimate_eq(struct bstr const *text, uint8_t val)
+{
+	return text->len >= 2 && text->buf[text->len - 2] == val;
 }
 
 /* Drop bytes from the end */

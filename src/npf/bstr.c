@@ -378,7 +378,7 @@ found:
 	return bstr_split_length(parent, pi + 1, headp, tailp);
 }
 
-int bstr_find(struct bstr const *hs, struct bstr const *nd)
+int bstr_find_str(struct bstr const *hs, struct bstr const *nd)
 {
 	/* Empty needle always matches */
 	if (!nd->len)
