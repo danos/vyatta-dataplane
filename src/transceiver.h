@@ -12,9 +12,18 @@
 #include <rte_dev_info.h>
 #include "if_var.h"
 
+#define SFP_DYN_DATA_MAX_LEN     128
+
 struct xcvr_info {
 	struct rte_eth_dev_module_info module_info;
 	struct rte_dev_eeprom_info     eeprom_info;
+
+	/* previous measurements & warning/alarm data */
+	uint8_t prev_dyn_data[SFP_DYN_DATA_MAX_LEN];
+	uint8_t dyn_data_len;
+
+	/* offset from the beginning of the EEPROM area */
+	uint16_t offset;
 };
 
 void

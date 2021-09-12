@@ -136,7 +136,7 @@ static const char *debug_bits[] = {
 	"mpls_pkterr",	"dpi",          "qos_dp",       "qos_hw",
 	"storm_ctl",	"cpp_rl",	"ptp",          "cgnat",
 	"flow-cache",	"mac-limit",	"gpc",		"rldb-acl",
-	"twamp", "sfp-list",
+	"twamp",        "sfp-list",     "sfp-mon",
 };
 
 /* find debug bit based on name, allow abbreviation */

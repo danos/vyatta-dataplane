@@ -63,6 +63,7 @@
 #define DP_DBG_RLDB_ACL         (1ull << 40)
 #define DP_DBG_TWAMP		(1ull << 41)
 #define DP_DBG_SFP_LIST		(1ull << 42)
+#define DP_DBG_SFP_MON          (1ull << 43)
 
 /* Default to only debugging startup and link events.
  * Skip ARP and route since they can flood log.

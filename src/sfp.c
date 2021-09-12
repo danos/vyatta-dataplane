@@ -2233,6 +2233,85 @@ sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 
 static zsock_t *sfpd_notify_socket;
 
+static void
+sfp_save_eeprom_diag_status(struct xcvr_info *xcvr_info, uint16_t offset, uint8_t len)
+{
+	struct rte_dev_eeprom_info *eeprom_info;
+
+	xcvr_info->offset = offset;
+	xcvr_info->dyn_data_len = len;
+	eeprom_info = &xcvr_info->eeprom_info;
+	memcpy(xcvr_info->prev_dyn_data, eeprom_info->data + offset, len);
+}
+
+static void
+sfp_log_aw_status_change(struct xcvr_info *xcvr_info __rte_unused)
+{
+}
+
+static void
+sfpd_process_notify_msg(SFPStatusList *sfp_msg)
+{
+	SFPStatusList__SFP *sfp;
+	struct ifnet *ifp;
+	struct dpdk_eth_if_softc *sc;
+	struct rte_dev_eeprom_info *eeprom_info;
+	SFPStatusList__EEPROMData *data;
+
+	for (size_t i = 0; i < sfp_msg->n_sfp; i++) {
+		sfp = sfp_msg->sfp[i];
+		ifp = dp_ifnet_byifname(sfp->name);
+		if (!ifp || ifp->if_type != IFT_ETHER) {
+			DP_DEBUG(SFP_MON, DEBUG, DATAPLANE,
+				 "Could not find ethernet interface with name %s\n",
+				 sfp->name);
+			continue;
+		}
+
+		sc = rcu_dereference(ifp->if_softc);
+		if (!sc)
+			continue;
+
+		/* if first time, get full EEPROM contents */
+		if (!sc->xcvr_info.eeprom_info.length)
+			if (dpdk_eth_if_get_xcvr_info(ifp))
+				continue;
+
+		/* copy current values of EEPROM dynamic fields from message */
+		eeprom_info = &sc->xcvr_info.eeprom_info;
+
+		/*
+		 * pick just the first element. Add support for multiple
+		 * blocks later if needed
+		 */
+		data = sfp->data[0];
+		if (!data->has_offset || !data->has_length || !data->has_data) {
+			DP_DEBUG(SFP_MON, DEBUG, DATAPLANE,
+				 "Status msg for %s missing offset (%u) or length (%u)"
+				 " or data (%u)\n", ifp->if_name, data->has_offset,
+				 data->has_length, data->has_data);
+			continue;
+		}
+
+		if ((data->offset + data->length) > eeprom_info->length) {
+			DP_DEBUG(SFP_MON, DEBUG, DATAPLANE,
+				 "Invalid EEPROM offset (%d) or length (%d) rcvd for %s\n",
+				 data->offset, data->length, ifp->if_name);
+			continue;
+		}
+
+		/* save previous values of EEPROM dynamic fields */
+		sfp_save_eeprom_diag_status(&sc->xcvr_info, data->offset, data->length);
+
+		/* store current values in EEPROM data block */
+		memcpy(eeprom_info->data + data->offset, data->data.data, data->length);
+
+		/* emit logs if necessary */
+		sfp_log_aw_status_change(&sc->xcvr_info);
+	}
+
+}
+
 static int
 sfpd_msg_recv(zsock_t *sock, zmq_msg_t *hdr, zmq_msg_t *msg)
 {
@@ -2319,10 +2398,8 @@ static int sfpd_notify_recv(void *arg)
 			SFPStatusList *sfp_msg =
 				sfpstatus_list__unpack(NULL, len, (uint8_t *) data);
 
-			for (size_t i = 0; i < sfp_msg->n_sfp; i++) {
-				SFPStatusList__SFP *current = sfp_msg->sfp[i];
-				printf("INTERFACE: %s\n", current->name);
-			}
+			sfpd_process_notify_msg(sfp_msg);
+
 			RTE_LOG(INFO, DATAPLANE,
 				"SFPd: SFPDSTATUS_NOTIFY data:%p len:%d\n",
 				data, len);
