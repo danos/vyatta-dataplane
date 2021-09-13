@@ -126,8 +126,13 @@ int tap_receive(zloop_t *loop, zmq_pollitem_t *item,
 	else
 		mp = mbuf_pool_default();
 
+	if (mp == NULL) {
+		sii->ts_errors++;
+		return -1;
+	}
+
 	/* optimize for in-place receive if not doing jumbo packets */
-	if (mp && max_pkt <= rte_mbuf_buf_size(mp))
+	if (max_pkt <= rte_mbuf_buf_size(mp))
 		m = pktmbuf_alloc(mp, if_vrfid(ifp));
 
 	if (m)
@@ -141,18 +146,13 @@ int tap_receive(zloop_t *loop, zmq_pollitem_t *item,
 			dp_pktmbuf_notify_and_free(m);
 
 		if (errno == EINTR || errno == EAGAIN)
-			return 0;
+			return -1;
 
 		if (errno == EBADFD || errno == EBADF) {
-			RTE_LOG(INFO, DATAPLANE,
-				"tap read stale fd. Cleaning up\n");
 			zloop_poller_end(loop, item);
-			return 0;
+			return -1;
 		}
 
-		RTE_LOG(ERR, DATAPLANE,
-			"tap read error on port %u: %s\n", sii->port,
-			strerror(errno));
 		return -1;
 	}
 
@@ -162,12 +162,12 @@ int tap_receive(zloop_t *loop, zmq_pollitem_t *item,
 		m = pkt_to_mbuf(mp, if_vrfid(ifp), base, len);
 		if (m == NULL) {
 			++sii->ts_nobufs;
-			return 0;
+			return -1;
 		}
 	}
 
 	*pkt = m;
-	return 1;
+	return 0;
 }
 
 int spath_receive(zmq_pollitem_t *item, struct tun_pi *pi,
