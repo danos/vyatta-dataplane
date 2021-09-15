@@ -280,13 +280,16 @@ bool bstr_split_length(bstr_t const *parent, uint32_t len, bstr_t *headp, bstr_t
 	uint32_t plen = parent->len;
 	uint8_t *pbuf = parent->buf;
 
-	if (len > plen) {
+	if (len > plen)
 		return false;
-	}
 
-	if (len == plen) {
+	/* Block for managed strings */
+	if (parent->allocated & BSTR_MANAGED_BIT)
+		return false;
+
+	if (len == plen)
 		bstr_zinit(tailp);
-	} else {
+	else {
 		tailp->buf = pbuf + len;
 		tailp->allocated = tailp->len = plen - len;
 	}
