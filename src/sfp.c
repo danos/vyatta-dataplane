@@ -66,7 +66,16 @@
 
 struct _nv {
 	int v;
-	const char *n;
+	const char *n; /* json field name */
+};
+
+/*
+ * extended name value struct to include log msg content
+ */
+struct _nv_ext {
+	int v;
+	const char *n; /* json field name */
+	const char *l; /* log msg field */
 };
 
 /* Offset in the EEPROM data for all base queries. */
@@ -300,32 +309,31 @@ static struct _nv ext_8436_id[] = {
 	{ 0x0, "Power Class 1(1.5 W max)" }
 };
 
-static struct _nv alarm_flags[] = {
-	{ 0x0f, "temp_high_alarm" },
-	{ 0x0e, "temp_low_alarm" },
-	{ 0x0d, "vcc_high_alarm" },
-	{ 0x0c, "vcc_low_alarm" },
-	{ 0x0b, "tx_bias_high_alarm" },
-	{ 0x0a, "tx_bias_low_alarm" },
-	{ 0x09, "tx_power_high_alarm" },
-	{ 0x08, "tx_power_low_alarm" },
-	{ 0x07, "rx_power_high_alarm" },
-	{ 0x06, "rx_power_low_alarm" },
-	{ 0x00,  NULL }
+enum SFF_8472_AW_FLAG {
+	SFF_8472_AW_TEMP_HIGH    = 0xf,
+	SFF_8472_AW_TEMP_LOW     = 0xe,
+	SFF_8472_AW_VCC_HIGH     = 0xd,
+	SFF_8472_AW_VCC_LOW      = 0xc,
+	SFF_8472_AW_TX_BIAS_HIGH = 0xb,
+	SFF_8472_AW_TX_BIAS_LOW  = 0xa,
+	SFF_8472_AW_TX_PWR_HIGH  = 0x9,
+	SFF_8472_AW_TX_PWR_LOW   = 0x8,
+	SFF_8472_AW_RX_PWR_HIGH  = 0x7,
+	SFF_8472_AW_RX_PWR_LOW   = 0x6,
 };
 
-static struct _nv warning_flags[] = {
-	{ 0x0f, "temp_high_warn" },
-	{ 0x0e, "temp_low_warn" },
-	{ 0x0d, "vcc_high_warn" },
-	{ 0x0c, "vcc_low_warn" },
-	{ 0x0b, "tx_bias_high_warn" },
-	{ 0x0a, "tx_bias_low_warn" },
-	{ 0x09, "tx_power_high_warn" },
-	{ 0x08, "tx_power_low_warn" },
-	{ 0x07, "rx_power_high_warn" },
-	{ 0x06, "rx_power_low_warn" },
-	{ 0x00,  NULL }
+static struct _nv_ext aw_flags[] = {
+	{ SFF_8472_AW_TEMP_HIGH,    "temp_high",     "Temperature high"        },
+	{ SFF_8472_AW_TEMP_LOW,     "temp_low",      "Temperature low"         },
+	{ SFF_8472_AW_VCC_HIGH,     "vcc_high",      "Voltage high"            },
+	{ SFF_8472_AW_VCC_LOW,      "vcc_low",       "Voltage low"             },
+	{ SFF_8472_AW_TX_BIAS_HIGH, "tx_bias_high",  "Laser bias current high" },
+	{ SFF_8472_AW_TX_BIAS_LOW,  "tx_bias_low",   "Laser bias current low"  },
+	{ SFF_8472_AW_TX_PWR_HIGH,  "tx_power_high", "Tx power high"           },
+	{ SFF_8472_AW_TX_PWR_LOW,   "tx_power_low",  "Tx power low"            },
+	{ SFF_8472_AW_RX_PWR_HIGH,  "rx_power_high", "Rx power high"           },
+	{ SFF_8472_AW_RX_PWR_LOW,   "rx_power_low",  "Rx power low"            },
+	{ 0x00, NULL, NULL }
 };
 
 static struct _nv rx_pwr_aw_chan_upper_flags[] = {
@@ -1880,13 +1888,17 @@ print_sfp_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 }
 
 static void
-convert_aw_flags(json_writer_t *wr, struct _nv *x, const uint8_t *xbuf)
+convert_aw_flags(json_writer_t *wr, struct _nv_ext *x, const uint8_t *xbuf, bool alarm)
 {
 	uint16_t flags;
+	const char *suffix = (alarm ? "alarm" : "warn");
+	char aw_field[40];
 
 	flags = (uint16_t)((xbuf[0] << 8) | xbuf[1]);
-	for (; x->n != NULL; x++)
-		jsonw_bool_field(wr, x->n, flags & (1 << x->v));
+	for (; x->n != NULL; x++) {
+		snprintf(aw_field, sizeof(aw_field), "%s_%s", x->n, suffix);
+		jsonw_bool_field(wr, aw_field, flags & (1 << x->v));
+	}
 }
 
 static void
@@ -1899,7 +1911,7 @@ print_sfp_alarm_flags(const struct rte_dev_eeprom_info *eeprom_info,
 	if (get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_ALARM_FLAGS,
 			    2, xbuf))
 		return;
-	convert_aw_flags(wr, alarm_flags, xbuf);
+	convert_aw_flags(wr, aw_flags, xbuf, true);
 }
 
 static void
@@ -1912,7 +1924,7 @@ print_sfp_warning_flags(const struct rte_dev_eeprom_info *eeprom_info,
 	if (get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			    SFF_8472_WARNING_FLAGS, 2, xbuf))
 		return;
-	convert_aw_flags(wr, warning_flags, xbuf);
+	convert_aw_flags(wr, aw_flags, xbuf, false);
 }
 
 static void
