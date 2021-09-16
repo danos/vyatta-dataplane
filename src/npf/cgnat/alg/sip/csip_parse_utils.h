@@ -25,6 +25,7 @@ struct csip_line {
 	union {
 		enum csip_req	req;	/* type SIP_LINE_REQ */
 		uint		resp;	/* type SIP_LINE_RESP */
+		enum csip_hdr_type sip;	/* type SIP_LINE_SIP */
 	};
 };
 
@@ -36,6 +37,10 @@ struct csip_lines_meta {
 	uint32_t capacity;
 	uint32_t used;
 	uint32_t sdp_index;
+
+	/* index to first occurrence of each SIP line type */
+	uint32_t sip_index[SIP_HDR_MAX];
+
 };
 
 struct csip_lines {
@@ -45,6 +50,9 @@ struct csip_lines {
 
 /* Size of separating line between SIP and SDP msg header blocks */
 #define SIP_SEPARATOR_SZ	((long)sizeof("\r\n") - 1)
+
+/* Approx minimum length of line (excluding SIP/SDP separator line) */
+#define SIP_LINE_MIN		((long)sizeof("x=y\r\n") - 1)
 
 bool csip_get_hline(struct bstr const *parent, struct bstr *headp, struct bstr *tailp);
 bool csip_get_line(struct bstr const *parent, struct bstr *headp, struct bstr *tailp);

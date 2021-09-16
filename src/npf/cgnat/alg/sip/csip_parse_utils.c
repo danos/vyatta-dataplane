@@ -158,6 +158,8 @@ bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
 	/* sdp_index >= m.capacity means there is no SDP part */
 	sip_lines->m.sdp_index = sip_lines->m.capacity;
 
+	memset(sip_lines->m.sip_index, 0, sizeof(sip_lines->m.sip_index));
+
 	/* Request or Response Start line */
 	if (!csip_get_line(msg, &lines[0].b, &tail)) {
 		lines[0].b = BSTR_INIT;

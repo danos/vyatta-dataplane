@@ -447,7 +447,7 @@ const char *sipd1_pre_cgnat[CGN_SIP_TEST1_SZ] = {
 	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
 	"Record-Route: <sip:1.1.1.2;lr>\r\n"
 	"From: A. Workman <sip:workman@1.1.1.2>;tag=76341\r\n"
-	"To: B.Boss <sip:B.Boss@work.co.uk>\r\n"
+	"t : B.Boss <sip:B.Boss@work.co.uk>\r\n"
 	"Call-ID: j2qu348ek2328ws\r\n"
 	"User-agent: Cisco-SIPGateway/IOS-12.x\r\n"
 	"CSeq: 1 INVITE\r\n"
@@ -478,7 +478,7 @@ const char *sipd1_post_cgnat_x[CGN_SIP_TEST1_SZ] = {
 	"Via: SIP/2.0/UDP 1.1.1.2:5060;branch=z9hG4bKfw19b\r\n"
 	"Record-Route: <sip:1.1.1.2;lr>\r\n"
 	"From: A. Workman <sip:workman@30.30.30.2>;tag=76341\r\n"
-	"To: B.Boss <sip:B.Boss@work.co.uk>\r\n"
+	"t : B.Boss <sip:B.Boss@work.co.uk>\r\n"
 	"Call-ID: j2qu348ek2328ws\r\n"
 	"User-agent: Cisco-SIPGateway/IOS-12.x\r\n"
 	"CSeq: 1 INVITE\r\n"
@@ -509,6 +509,7 @@ DP_START_TEST(sip5, test)
 {
 	struct bstr orig = BSTR_INIT;
 	char orig_buf[2000];
+	uint32_t i;
 	bool ok;
 
 	struct {
@@ -574,6 +575,29 @@ DP_START_TEST(sip5, test)
 	dp_test_fail_unless(sip_lines->lines[0].type == SIP_LINE_REQ,
 			    "Line 0, expected REQ");
 
+	/* Classify the SIP lines */
+
+	for (i = 1; i < sip_lines->m.sdp_index - 1; i++) {
+		ok = csip_classify_sip(sip_lines, i);
+		dp_test_fail_unless(ok, "Failed to classify SIP line %u", i);
+	}
+
+	dp_test_fail_unless(sip_lines->lines[1].sip == SIP_HDR_VIA,
+			    "Line 1, expected Via");
+
+	dp_test_fail_unless(sip_lines->m.sip_index[SIP_HDR_VIA] == 1,
+			    "Via index, expected 1 got %u",
+			    sip_lines->m.sip_index[SIP_HDR_VIA]);
+
+	dp_test_fail_unless(sip_lines->lines[4].sip == SIP_HDR_TO,
+			    "Line 5, expected To");
+
+	dp_test_fail_unless(sip_lines->lines[5].sip == SIP_HDR_CALLID,
+			    "Line 5, expected CallID");
+
+	dp_test_fail_unless(sip_lines->m.sip_index[SIP_HDR_CALLID] == 5,
+			    "CallID index, expected 5 got %u",
+			    sip_lines->m.sip_index[SIP_HDR_CALLID]);
 
 } DP_END_TEST;
 

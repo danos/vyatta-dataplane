@@ -23,6 +23,48 @@
 #include "npf/bstr.h"
 
 /*
+ * SIP Header Name
+ *
+ * csip_hdr_name[] is used to identify each interesting SIP header line. The
+ * character case shown here is the most common.  However the identification
+ * routines ignore the case.
+ */
+static struct bstr csip_hdr_name[] = {
+	[SIP_HDR_NONE]		= BSTR_K("none"),
+	[SIP_HDR_OTHER]		= BSTR_K("other"),
+
+	[SIP_HDR_VIA]		= BSTR_K("Via"),
+	[SIP_HDR_ROUTE]		= BSTR_K("Route"),
+	[SIP_HDR_RR]		= BSTR_K("Record-Route"),
+	[SIP_HDR_FROM]		= BSTR_K("From"),
+	[SIP_HDR_TO]		= BSTR_K("To"),
+	[SIP_HDR_CALLID]	= BSTR_K("Call-ID"),
+	[SIP_HDR_CONTACT]	= BSTR_K("Contact"),
+	[SIP_HDR_UA]		= BSTR_K("User-Agent"),
+	[SIP_HDR_CTYPE]		= BSTR_K("Content-Type"),
+	[SIP_HDR_CLEN]		= BSTR_K("Content-Length"),
+};
+
+/*
+ * Some SIP header lines allow a short-form to be used.  This is less common.
+ */
+static char csip_hdr_short[] = {
+	[SIP_HDR_NONE]		= '\0',
+	[SIP_HDR_OTHER]		= '\0',
+
+	[SIP_HDR_VIA]		= 'v',
+	[SIP_HDR_ROUTE]		= '\0',
+	[SIP_HDR_RR]		= '\0',
+	[SIP_HDR_FROM]		= 'f',
+	[SIP_HDR_TO]		= 't',
+	[SIP_HDR_CALLID]	= 'i',
+	[SIP_HDR_CONTACT]	= 'm',
+	[SIP_HDR_UA]		= '\0',
+	[SIP_HDR_CTYPE]		= 'c',
+	[SIP_HDR_CLEN]		= 'l',
+};
+
+/*
  * Parse a SIP message start-line
  *
  * We are looking to verify the SIP version, and to determine if it is a
@@ -70,3 +112,98 @@ bool csip_classify_sip_start(struct csip_lines *sip_lines)
 	return rv;
 }
 
+static inline bool csip_ascii_islower(char c)
+{
+	return c >= 'a' && c <= 'z';
+}
+
+/*
+ * Some SIP header lines allow a short form to be used.  We look for a single
+ * lowercase character followed by either a colon, space or horizontal-tab.
+ *
+ * 'c' SWS : LWS
+ */
+static bool csip_line_is_short_form(struct bstr const *b)
+{
+	uint8_t c1, c2;
+
+	if (!bstr_get_byte(b, 0, &c1) || !bstr_get_byte(b, 1, &c2))
+		return false;
+
+	/*
+	 * We look for a single lowercase character followed by either a
+	 * colon, space or horizontal-tab
+	 */
+	return csip_ascii_islower(c1) && (c2 == ':' || c2 == ' ' || c2 == '\t');
+}
+
+/*
+ * Identify a short-form SIP header line
+ */
+static void csip_classify_sip_short(struct csip_line *line)
+{
+	enum csip_hdr_type type;
+
+	for (type = SIP_HDR_FIRST; type <= SIP_HDR_LAST; type++)
+		if (bstr_first_eq(&line->b, csip_hdr_short[type])) {
+			line->sip = type;
+			return;
+		}
+
+	line->sip = SIP_HDR_OTHER;
+}
+
+/*
+ * Identify a SIP header from its name
+ *
+ * header  =  "header-name" HCOLON header-value *(COMMA header-value)
+ *
+ * HCOLON  =  *( SP / HTAB ) ":" SWS
+ */
+static void csip_classify_sip_long(struct csip_line *line)
+{
+	enum csip_hdr_type type;
+
+	for (type = SIP_HDR_FIRST; type <= SIP_HDR_LAST; type++)
+		if (bstr_prefix_ascii_case(&line->b, &csip_hdr_name[type])) {
+			line->sip = type;
+			return;
+		}
+
+	line->sip = SIP_HDR_OTHER;
+}
+
+/*
+ * SIP Header Classification
+ *
+ * A header field name MAY appear in both long and short forms within the same
+ * message.  Implementations MUST accept both the long and short forms of each
+ * header name.
+ */
+bool csip_classify_sip(struct csip_lines *sip_lines, uint32_t index)
+{
+	struct csip_line *line = &sip_lines->lines[index];
+
+	/* Truncated line? */
+	if (unlikely(line->b.len < SIP_LINE_MIN)) {
+		line->sip = SIP_HDR_OTHER;
+		return false;
+	}
+
+	/* The short-form of the method string seems to be less common */
+	if (unlikely(csip_line_is_short_form(&line->b)))
+		csip_classify_sip_short(line);
+	else
+		csip_classify_sip_long(line);
+
+	/*
+	 * Remember first or only occurrence of this SIP header type in the
+	 * msg.  Some SIP header lines (e.g. Via and Record-Route) may have
+	 * multiple instances.  Others may only have a single instance
+	 * (e.g. Call-ID and Content-Length).
+	 */
+	if (sip_lines->m.sip_index[line->sip] == 0)
+		sip_lines->m.sip_index[line->sip] = index;
+
+	return true;
+}

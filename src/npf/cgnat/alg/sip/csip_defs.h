@@ -47,4 +47,35 @@ enum csip_line_type {
 	SIP_LINE_SDP,	/* SDP header line */
 };
 
+/*
+ * SIP message header fields that the ALG might be interested in.  Note, this
+ * is *not* a complete list of the 40+ possible headers.
+ *
+ * Headers not in this list will simply be copied from the original to the
+ * translation message buffers.  Not all the headers in this list will be
+ * translated.  Some are only picked-out in order to glean information from
+ * that header (e.g. Call-ID and Content-Type).
+ */
+enum csip_hdr_type {
+	SIP_HDR_NONE,
+	SIP_HDR_SEP,		/* Separator */
+	SIP_HDR_OTHER,		/* A header we are not interested in */
+
+	SIP_HDR_VIA,		/* Via */
+	SIP_HDR_ROUTE,		/* Route */
+	SIP_HDR_RR,		/* Record-route */
+	SIP_HDR_FROM,		/* From */
+	SIP_HDR_TO,		/* To */
+	SIP_HDR_CALLID,		/* Call-ID */
+	SIP_HDR_CONTACT,	/* Contact */
+	SIP_HDR_UA,		/* User-agent */
+	SIP_HDR_CTYPE,		/* Content-Type */
+	SIP_HDR_CLEN,		/* Content-Length */
+};
+
+/* First and last actual values */
+#define SIP_HDR_FIRST	SIP_HDR_VIA
+#define SIP_HDR_LAST	SIP_HDR_CLEN
+#define SIP_HDR_MAX	(SIP_HDR_LAST + 1)
+
 #endif /* CSIP_DEFS_H */
