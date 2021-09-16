@@ -16,4 +16,6 @@ struct bstr;
 int csip_parse_start_line(struct bstr const *line, enum csip_req *req,
 			  unsigned int *resp_code);
 
+bool csip_classify_sip_start(struct csip_lines *sip_lines);
+
 #endif /* CSIP_PARSE_SIP_H */

@@ -22,6 +22,10 @@
 struct csip_line {
 	struct bstr b;
 	enum csip_line_type type;
+	union {
+		enum csip_req	req;	/* type SIP_LINE_REQ */
+		uint		resp;	/* type SIP_LINE_RESP */
+	};
 };
 
 /*

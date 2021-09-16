@@ -567,6 +567,14 @@ DP_START_TEST(sip5, test)
 	dp_test_fail_unless(sip_lines->lines[19].type == SIP_LINE_SDP,
 			    "Line 19, expected SDP");
 
+	/* Classify the SIP message start-line */
+	ok = csip_classify_sip_start(sip_lines);
+
+	dp_test_fail_unless(ok, "Failed to classify SIP start-line");
+	dp_test_fail_unless(sip_lines->lines[0].type == SIP_LINE_REQ,
+			    "Line 0, expected REQ");
+
+
 } DP_END_TEST;
 
 

@@ -41,3 +41,32 @@ int csip_parse_start_line(struct bstr const *line, enum csip_req *req,
 
 	return rc;
 }
+
+/*
+ * Parse, verify, and classify the SIP message start-line
+ */
+bool csip_classify_sip_start(struct csip_lines *sip_lines)
+{
+	struct csip_line *line = &sip_lines->lines[0];
+	enum csip_req req = SIP_REQ_NONE;
+	uint resp_code = 0;
+	bool rv = true;
+
+	/* Verify SIP version and scheme. Determine Req/Resp type */
+	if (csip_parse_start_line(&line->b, &req, &resp_code) < 0)
+		return false;
+
+	/* Set the line type */
+	if (req != SIP_REQ_NONE) {
+		line->type = SIP_LINE_REQ;
+		line->req = req;
+	} else if (resp_code > 0) {
+		line->type = SIP_LINE_RESP;
+		line->resp = resp_code;
+	} else {
+		line->type = SIP_LINE_NONE;
+		rv = false;
+	}
+	return rv;
+}
+
