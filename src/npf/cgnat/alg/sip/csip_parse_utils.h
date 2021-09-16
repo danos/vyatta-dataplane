@@ -22,9 +22,14 @@ struct csip_line {
 	struct bstr b;
 };
 
+/*
+ * sdp_index is index into array of the first sdp message line, if present.
+ * If there is no sdp part then it is set to >= 'capacity'.
+ */
 struct csip_lines_meta {
 	uint32_t capacity;
 	uint32_t used;
+	uint32_t sdp_index;
 };
 
 struct csip_lines {

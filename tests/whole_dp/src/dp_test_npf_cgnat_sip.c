@@ -554,6 +554,9 @@ DP_START_TEST(sip5, test)
 	dp_test_fail_unless(sip_lines->m.used == 22,
 			    "Expected 22 lines, got %u", sip_lines->m.used);
 
+	dp_test_fail_unless(sip_lines->m.sdp_index == 14,
+			    "SDP index, expected 14 got %u", sip_lines->m.sdp_index);
+
 } DP_END_TEST;
 
 
