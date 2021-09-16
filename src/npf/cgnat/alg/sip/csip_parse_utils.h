@@ -12,6 +12,16 @@
 #include "npf/bstr.h"
 #include "npf/cgnat/cgn_dir.h"
 
+/*
+ * struct csip_line references one line of a SIP (or SIP+SDP) message.
+ *
+ * It references a line in a SIP message in a packet buffer, or in a new
+ * message buffer on the stack.
+ */
+struct csip_line {
+	struct bstr b;
+};
+
 struct csip_lines_meta {
 	uint32_t capacity;
 	uint32_t used;
@@ -19,7 +29,7 @@ struct csip_lines_meta {
 
 struct csip_lines {
 	struct csip_lines_meta m;
-	struct bstr lines[];
+	struct csip_line lines[];
 };
 
 /* Size of separating line between SIP and SDP msg header blocks */

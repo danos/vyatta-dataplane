@@ -513,7 +513,7 @@ DP_START_TEST(sip5, test)
 
 	struct {
 		struct csip_lines_meta meta;
-		struct bstr arr[SIP_BSTR_SZ];
+		struct csip_line arr[SIP_BSTR_SZ];
 	} line_array;
 
 	line_array.meta.used = 0;
@@ -571,7 +571,7 @@ DP_START_TEST(sip6, test)
 
 	struct {
 		struct csip_lines_meta meta;
-		struct bstr arr[SIP_BSTR_SZ];
+		struct csip_line arr[SIP_BSTR_SZ];
 	} line_array;
 
 	line_array.meta.used = 0;
@@ -622,7 +622,7 @@ DP_START_TEST(sip6, test)
 	struct bstr oport = BSTR_K("5060");
 	struct bstr taddr = BSTR_K("30.30.30.2");
 	struct bstr tport = BSTR_K("1024");
-	struct bstr *lines = sip_lines->lines;
+	struct csip_line *lines = sip_lines->lines;
 	uint32_t nlines = sip_lines->m.used;
 	char new_buf[2000];
 	struct bstr new;
@@ -635,15 +635,15 @@ DP_START_TEST(sip6, test)
 	for (i = 0; i < nlines; i++) {
 
 		/* Look for 'From' header */
-		offs = bstr_find_str(&lines[i], &from);
+		offs = bstr_find_str(&lines[i].b, &from);
 
 		/* We expect the 'From' string at the start of the line */
 		if (offs == 0) {
-			ok = csip_find_and_translate_uri(&lines[i], &new,
+			ok = csip_find_and_translate_uri(&lines[i].b, &new,
 							 &oaddr, &oport, &taddr, &tport);
 			dp_test_fail_unless(ok, "Failed to translate 'From'");
 		} else {
-			ok = bstr_addbuf(&new, &lines[i]);
+			ok = bstr_addbuf(&new, &lines[i].b);
 			dp_test_fail_unless(ok, "Failed to copy line");
 		}
 	}

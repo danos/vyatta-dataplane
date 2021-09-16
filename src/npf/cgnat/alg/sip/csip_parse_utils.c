@@ -147,7 +147,7 @@ bool csip_get_line(struct bstr const *parent, struct bstr *headp, struct bstr *t
  */
 bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
 {
-	struct bstr *lines = sip_lines->lines;
+	struct csip_line *lines = sip_lines->lines;
 	struct bstr head, tail;
 	uint32_t max_capacity;
 	uint32_t i;
@@ -156,35 +156,35 @@ bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
 	max_capacity = sip_lines->m.capacity - 1;
 
 	/* Request or Response Start line */
-	if (!csip_get_line(msg, &lines[0], &tail)) {
-		lines[0] = BSTR_INIT;
+	if (!csip_get_line(msg, &lines[0].b, &tail)) {
+		lines[0].b = BSTR_INIT;
 		return false;
 	}
 
 	/* SIP header lines */
 	for (i = 1, head = tail; i < max_capacity; i++, head = tail) {
-		if (!csip_get_hline(&head, &lines[i], &tail)) {
+		if (!csip_get_hline(&head, &lines[i].b, &tail)) {
 			/* End of input.  Return success. */
 			sip_lines->m.used = i;
-			lines[i] = BSTR_INIT;
+			lines[i].b = BSTR_INIT;
 			return true;
 		}
 
-		if (lines[i].len == SIP_SEPARATOR_SZ)
+		if (lines[i].b.len == SIP_SEPARATOR_SZ)
 			break;
 	}
 
 	/* SDP header lines */
 	for (i++, head = tail; i < max_capacity; i++, head = tail)
-		if (!csip_get_line(&head, &lines[i], &tail)) {
+		if (!csip_get_line(&head, &lines[i].b, &tail)) {
 			/* End of input.  Return success. */
 			sip_lines->m.used = i;
-			lines[i] = BSTR_INIT;
+			lines[i].b = BSTR_INIT;
 			return true;
 		}
 
 	/* out of space */
-	lines[0] = BSTR_INIT;
+	lines[0].b = BSTR_INIT;
 	return false;
 }
 
