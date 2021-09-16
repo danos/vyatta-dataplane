@@ -2244,9 +2244,92 @@ sfp_save_eeprom_diag_status(struct xcvr_info *xcvr_info, uint16_t offset, uint8_
 	memcpy(xcvr_info->prev_dyn_data, eeprom_info->data + offset, len);
 }
 
-static void
-sfp_log_aw_status_change(struct xcvr_info *xcvr_info __rte_unused)
+static void sfp_get_value(struct xcvr_info *xcvr_info __rte_unused,
+			  enum SFF_8472_AW_FLAG flag __rte_unused,
+			  char *val_str)
 {
+	val_str[0] = 0;
+}
+
+static void sfp_get_thr_value(struct xcvr_info *xcvr_info __rte_unused,
+			      enum SFF_8472_AW_FLAG flag __rte_unused,
+			      bool alarm __rte_unused,
+			      char *thr_str)
+{
+	thr_str[0] = 0;
+}
+
+static void sfp_process_aw_flag_change(struct ifnet *ifp, struct xcvr_info *xcvr_info,
+				       uint16_t old_flags, uint16_t new_flags, bool alarm)
+{
+	struct _nv_ext *x;
+	char val_str[20], thr_str[20];
+	uint16_t flag;
+	char *aw_str = (alarm ? "alarm" : "warning");
+
+	for (x = aw_flags; x->n != NULL; x++) {
+		flag = 1 << x->v;
+		if ((old_flags & flag) == (new_flags & flag))
+			continue;
+
+		sfp_get_value(xcvr_info, x->v, val_str);
+		sfp_get_thr_value(xcvr_info, x->v, alarm, thr_str);
+		RTE_LOG(ERR, SFP_MON,
+			"%s %s %s on %s. Current value = %s, %s %s threshold = %s\n",
+			x->l, aw_str, ((new_flags & flag) ? "detected" : "cleared"),
+			ifp->if_name, val_str, x->l, aw_str, thr_str);
+	}
+}
+
+static void
+sfp_log_aw_status_change(struct ifnet *ifp, struct xcvr_info *xcvr_info)
+{
+#define SFF_8472_AW_FLAGS_LEN 6
+
+	uint8_t *old_aw_flags = xcvr_info->prev_dyn_data +
+		(SFF_8472_DIAG_OFFSET + SFF_8472_ALARM_FLAGS - xcvr_info->offset);
+	uint8_t *new_aw_flags = (uint8_t *)xcvr_info->eeprom_info.data +
+		SFF_8472_DIAG_OFFSET + SFF_8472_ALARM_FLAGS;
+	uint16_t old_flags, new_flags, warn_offset;
+
+	if (!memcmp(old_aw_flags, new_aw_flags, SFF_8472_AW_FLAGS_LEN))
+		return;
+
+	/* process warning flags */
+	warn_offset = SFF_8472_WARNING_FLAGS - SFF_8472_ALARM_FLAGS;
+	old_flags = (uint16_t)((old_aw_flags[warn_offset] << 8) |
+			       old_aw_flags[warn_offset + 1]);
+	new_flags = (uint16_t)((new_aw_flags[warn_offset] << 8) |
+				new_aw_flags[warn_offset + 1]);
+	DP_DEBUG(SFP_MON, DEBUG, DATAPLANE,
+		 "%s: old_warn_flags = 0x%x, new_warn_flags = 0x%x\n",
+		 ifp->if_name, old_flags, new_flags);
+
+	sfp_process_aw_flag_change(ifp, xcvr_info, old_flags, new_flags, false);
+
+	/* process alarm flags */
+	old_flags = (uint16_t)((old_aw_flags[0] << 8) | old_aw_flags[1]);
+	new_flags = (uint16_t)((new_aw_flags[0] << 8) | new_aw_flags[1]);
+	DP_DEBUG(SFP_MON, DEBUG, DATAPLANE,
+		 "%s: old_alarm_flags = 0x%x, new_alarm_flags = 0x%x\n",
+		 ifp->if_name, old_flags, new_flags);
+	sfp_process_aw_flag_change(ifp, xcvr_info, old_flags, new_flags, true);
+}
+
+static void
+sfp_qsfp_log_aw_status_change(struct ifnet *ifp, struct xcvr_info *xcvr_info)
+{
+	DP_DEBUG(SFP_MON, DEBUG, DATAPLANE,
+		 "Logging SFP status change for %s, module_type = %d, offset = %d\n",
+		 ifp->if_name, xcvr_info->module_info.type, xcvr_info->offset);
+
+	switch (xcvr_info->module_info.type) {
+	case RTE_ETH_MODULE_SFF_8472:
+		if (xcvr_info->offset < SFF_8472_DIAG_OFFSET)
+			return;
+		sfp_log_aw_status_change(ifp, xcvr_info);
+		break;
+	}
 }
 
 static void
@@ -2300,6 +2383,10 @@ sfpd_process_notify_msg(SFPStatusList *sfp_msg)
 			continue;
 		}
 
+		DP_DEBUG(SFP_MON, DEBUG, DATAPLANE,
+			 "EEPROM values (offset %d, length %d) being saved for %s\n",
+			 data->offset, data->length, ifp->if_name);
+
 		/* save previous values of EEPROM dynamic fields */
 		sfp_save_eeprom_diag_status(&sc->xcvr_info, data->offset, data->length);
 
@@ -2307,9 +2394,8 @@ sfpd_process_notify_msg(SFPStatusList *sfp_msg)
 		memcpy(eeprom_info->data + data->offset, data->data.data, data->length);
 
 		/* emit logs if necessary */
-		sfp_log_aw_status_change(&sc->xcvr_info);
+		sfp_qsfp_log_aw_status_change(ifp, &sc->xcvr_info);
 	}
-
 }
 
 static int
