@@ -161,8 +161,15 @@ bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
 	/* Request or Response Start line */
 	if (!csip_get_line(msg, &lines[0].b, &tail)) {
 		lines[0].b = BSTR_INIT;
+		lines[0].type = SIP_LINE_NONE;
 		return false;
 	}
+
+	/*
+	 * Mark start-line as a SIP line until such time as we can determine
+	 * if its a Request or Response start-line
+	 */
+	lines[0].type = SIP_LINE_SIP;
 
 	/* SIP header lines */
 	for (i = 1, head = tail; i < max_capacity; i++, head = tail) {
@@ -170,27 +177,34 @@ bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
 			/* End of input.  Return success. */
 			sip_lines->m.used = i;
 			lines[i].b = BSTR_INIT;
+			lines[i].type = SIP_LINE_NONE;
 			return true;
 		}
 
 		/* Separating line between SIP and SDP parts? */
 		if (lines[i].b.len == SIP_SEPARATOR_SZ) {
 			sip_lines->m.sdp_index = i + 1;
+			lines[i].type = SIP_LINE_SEPARATOR;
 			break;
 		}
+		lines[i].type = SIP_LINE_SIP;
 	}
 
 	/* SDP header lines */
-	for (i++, head = tail; i < max_capacity; i++, head = tail)
+	for (i++, head = tail; i < max_capacity; i++, head = tail) {
 		if (!csip_get_line(&head, &lines[i].b, &tail)) {
 			/* End of input.  Return success. */
 			sip_lines->m.used = i;
 			lines[i].b = BSTR_INIT;
+			lines[i].type = SIP_LINE_NONE;
 			return true;
 		}
+		lines[i].type = SIP_LINE_SDP;
+	}
 
 	/* out of space */
 	lines[0].b = BSTR_INIT;
+	lines[0].type = SIP_LINE_NONE;
 	return false;
 }
 

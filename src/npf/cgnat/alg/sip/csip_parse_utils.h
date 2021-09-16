@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include "npf/bstr.h"
 #include "npf/cgnat/cgn_dir.h"
+#include "npf/cgnat/alg/sip/csip_defs.h"
 
 /*
  * struct csip_line references one line of a SIP (or SIP+SDP) message.
@@ -20,6 +21,7 @@
  */
 struct csip_line {
 	struct bstr b;
+	enum csip_line_type type;
 };
 
 /*

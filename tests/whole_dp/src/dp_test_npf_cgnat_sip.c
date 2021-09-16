@@ -557,6 +557,16 @@ DP_START_TEST(sip5, test)
 	dp_test_fail_unless(sip_lines->m.sdp_index == 14,
 			    "SDP index, expected 14 got %u", sip_lines->m.sdp_index);
 
+	/* Check a selection of lines */
+	dp_test_fail_unless(sip_lines->lines[1].type == SIP_LINE_SIP,
+			    "Line 1, expected SIP");
+
+	dp_test_fail_unless(sip_lines->lines[13].type == SIP_LINE_SEPARATOR,
+			    "Line 13, expected separator");
+
+	dp_test_fail_unless(sip_lines->lines[19].type == SIP_LINE_SDP,
+			    "Line 19, expected SDP");
+
 } DP_END_TEST;
 
 

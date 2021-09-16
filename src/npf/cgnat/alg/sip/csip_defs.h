@@ -35,4 +35,16 @@ enum csip_req {
 #define SIP_REQ_LAST		SIP_REQ_UPDATE
 #define SIP_REQ_MAX		(SIP_REQ_LAST + 1)
 
+/*
+ * Each line in a SIP message is classified as one of the following
+ */
+enum csip_line_type {
+	SIP_LINE_NONE,
+	SIP_LINE_REQ,	/* Request start line */
+	SIP_LINE_RESP,	/* Response start line */
+	SIP_LINE_SIP,	/* SIP header line */
+	SIP_LINE_SEPARATOR, /* Separates SIP and SDP parts */
+	SIP_LINE_SDP,	/* SDP header line */
+};
+
 #endif /* CSIP_DEFS_H */
