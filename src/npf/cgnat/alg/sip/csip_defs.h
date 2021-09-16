@@ -78,4 +78,25 @@ enum csip_hdr_type {
 #define SIP_HDR_LAST	SIP_HDR_CLEN
 #define SIP_HDR_MAX	(SIP_HDR_LAST + 1)
 
+/*
+ * A block of SDP message headers follows the SIP headers in some SIP messages
+ * (typically Invite Requests and 150 or 200 Responses).  These contain the
+ * address and port information for the RTP data flows.
+ */
+enum csdp_hdr_type {
+	SDP_HDR_NONE,
+	SDP_HDR_OTHER,
+
+	SDP_HDR_CONN,		/* connection */
+	SDP_HDR_ORIGIN,		/* origin */
+	SDP_HDR_MEDIA,		/* media */
+	SDP_HDR_ATTR_RTCP,	/* attribute rtcp */
+	SDP_HDR_ATTR_RTCP_MUX,	/* attribute rtcp-mux */
+};
+
+/* First and last actual values */
+#define SDP_HDR_FIRST	SDP_HDR_CONN
+#define SDP_HDR_LAST	SDP_HDR_ATTR_RTCP_MUX
+#define SDP_HDR_MAX	(SDP_HDR_LAST + 1)
+
 #endif /* CSIP_DEFS_H */

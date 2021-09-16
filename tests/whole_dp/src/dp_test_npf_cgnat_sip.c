@@ -13,6 +13,7 @@
 #include "npf/cgnat/cgn_sess2.h"
 #include "npf/cgnat/alg/alg_rc.h"
 #include "npf/cgnat/alg/sip/csip_defs.h"
+#include "npf/cgnat/alg/sip/csip_parse_sdp.h"
 #include "npf/cgnat/alg/sip/csip_parse_sip.h"
 #include "npf/cgnat/alg/sip/csip_parse_utils.h"
 #include "npf/bstr.h"
@@ -598,6 +599,19 @@ DP_START_TEST(sip5, test)
 	dp_test_fail_unless(sip_lines->m.sip_index[SIP_HDR_CALLID] == 5,
 			    "CallID index, expected 5 got %u",
 			    sip_lines->m.sip_index[SIP_HDR_CALLID]);
+
+	/* Classify the SDP lines */
+
+	for (i = sip_lines->m.sdp_index; i < sip_lines->m.used; i++) {
+		ok = csip_classify_sdp(sip_lines, i);
+		dp_test_fail_unless(ok, "Failed to classify SDP line %u", i);
+	}
+
+	dp_test_fail_unless(sip_lines->lines[19].sdp == SDP_HDR_MEDIA,
+			    "Line 19, expected SDP Media");
+
+	dp_test_fail_unless(sip_lines->lines[20].sdp == SDP_HDR_ATTR_RTCP,
+			    "Line 20, expected SDP Attr rtcp");
 
 } DP_END_TEST;
 

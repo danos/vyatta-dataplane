@@ -26,6 +26,7 @@ struct csip_line {
 		enum csip_req	req;	/* type SIP_LINE_REQ */
 		uint		resp;	/* type SIP_LINE_RESP */
 		enum csip_hdr_type sip;	/* type SIP_LINE_SIP */
+		enum csdp_hdr_type sdp;	/* type SIP_LINE_SDP */
 	};
 };
 
@@ -40,7 +41,6 @@ struct csip_lines_meta {
 
 	/* index to first occurrence of each SIP line type */
 	uint32_t sip_index[SIP_HDR_MAX];
-
 };
 
 struct csip_lines {
