@@ -82,3 +82,46 @@ DP_START_TEST(bstr1, test)
 			    tail.len, tail.len, tail.buf);
 
 } DP_END_TEST;
+
+/*
+ * bstr2. Tests whitespace trimming with bstr_ltrim and bstr_rtrim
+ */
+DP_DECL_TEST_CASE(bstr, bstr2, NULL, NULL);
+DP_START_TEST(bstr2, test)
+{
+	const char *const_buf = " \t abcdef:123456\t  ";
+	struct bstr b = BSTR_INIT;
+	char buf[200];
+	bool ok;
+
+	/* bstr_attach_unmanaged */
+
+	ok = bstr_attach_unmanaged(&b, buf, 0, sizeof(buf));
+	dp_test_fail_unless(ok, "error bstr_attach_unmanaged");
+
+	/* bstr_addstr */
+
+	ok = bstr_addstr(&b, const_buf);
+	dp_test_fail_unless(ok, "error bstr_addstr");
+
+	/* bstr_ltrim */
+
+	ok = bstr_ltrim(&b);
+	dp_test_fail_unless(ok, "error bstr_ltrim");
+
+	ok = bstr_eq(&b, BSTRL("abcdef:123456\t  "));
+	dp_test_fail_unless(ok, "error with b after ltrim, "
+			    "exp \"abcdef:123456\t  \" got \"%*.*s\"",
+			    b.len, b.len, b.buf);
+
+	/* bstr_rtrim */
+
+	ok = bstr_rtrim(&b);
+	dp_test_fail_unless(ok, "error bstr_rtrim");
+
+	ok = bstr_eq(&b, BSTRL("abcdef:123456"));
+	dp_test_fail_unless(ok, "error with b after rtrim, "
+			    "exp \"abcdef:123456\" got \"%*.*s\"",
+			    b.len, b.len, b.buf);
+
+} DP_END_TEST;

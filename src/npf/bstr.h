@@ -348,4 +348,12 @@ bool bstr_split_after_substr(struct bstr const *parent, struct bstr const *sub,
 bool bstr_split_before_substr(struct bstr const *parent, struct bstr const *sub,
 			      struct bstr *headp, struct bstr *tailp);
 
+/*
+ * Strip whitespace from the beginning (ltrim), end (rtrim), or both side
+ * (trim) of a string.
+ */
+bool bstr_ltrim(struct bstr *bs);
+bool bstr_rtrim(struct bstr *bs);
+bool bstr_trim(struct bstr *bs);
+
 #endif /* BSTR_H */

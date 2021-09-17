@@ -424,3 +424,50 @@ int bstr_find_term(struct bstr const *parent, uint8_t terminator)
 
 	return match - parent->buf;
 }
+
+/*
+ * Strip whitespace from the beginning (ltrim), end (rtrim), or both side
+ * (trim) of a string.
+ *
+ * Whitespace (WSP) is defined by ABNF as space and horizontal tab characters
+ * (SP / HTAB).
+ */
+bool bstr_ltrim(struct bstr *bs)
+{
+	int const len = bs->len;
+	uint8_t *c = bs->buf;
+	int i;
+
+	if (bs->allocated & BSTR_MANAGED_BIT)
+		return false;
+
+	for (i = 0; i < len; i++, c++)
+		if (*c != ' ' && *c != '\t')
+			return bstr_un_drop_left(bs, i);
+
+	return true;
+}
+
+bool bstr_rtrim(struct bstr *bs)
+{
+	int const len = bs->len;
+	uint8_t *c = bs->buf + len - 1;
+	int i;
+
+	for (i = 0; i < len; i++, c--)
+		if (*c != ' ' && *c != '\t')
+			return bstr_drop_right(bs, i);
+
+	return true;
+}
+
+bool bstr_trim(struct bstr *bs)
+{
+	if (!bstr_ltrim(bs))
+		return false;
+
+	if (!bstr_rtrim(bs))
+		return false;
+
+	return true;
+}
