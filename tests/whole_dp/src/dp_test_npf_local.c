@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -751,7 +751,7 @@ static void npf_orig_ipv6_icmp_transit_setup(
 	/*
 	 * Expected packet
 	 */
-	icmplen = 1280 - sizeof(struct ip6_hdr) - sizeof(struct icmp6_hdr);
+	icmplen = ICMP6_PAYLOAD_SIZE;
 	icmp_pak = dp_test_create_icmp_ipv6_pak("2001:1:1::1", "2001:1:1::2",
 						ICMP6_PACKET_TOO_BIG,
 						0, /* code */

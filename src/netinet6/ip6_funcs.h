@@ -23,6 +23,14 @@
 
 #define IPV6_HLIMDEC 1
 
+/*
+ * How much of the original packet are we going to include in any
+ * generated ICMP6 frame. Note that this plus the headers (IP6, ICMP6
+ * and any MPLS label stack) must be less than the IPv6 minimum MTU
+ * (1280).
+ */
+#define ICMP6_PAYLOAD_SIZE (1024)
+
 #define V4MAPPED_IPV6_TO_IPV4(A)	((A).s6_addr32[3])
 
 enum ip6_features {

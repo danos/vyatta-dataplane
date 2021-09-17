@@ -115,10 +115,20 @@ struct mplshdr {
  *
  */
 #define MAX_LABEL_CACHE_DEPTH	NH_MAX_OUT_LABELS /* max num labels can push */
+#define MIN_IPV6_MTU_SIZE 1280
 struct mpls_label_cache {
 	unsigned int num_labels;
 	struct mplshdr label[MAX_LABEL_CACHE_DEPTH];
 };
+/*
+ * Ensure that any generated ICMP6 frame will
+ * be less than the minimum IPv6 MTU size.
+ *
+ */
+static_assert(ICMP6_PAYLOAD_SIZE +
+		sizeof(struct ip6_hdr) + sizeof(struct icmp6_hdr) +
+		MAX_LABEL_CACHE_DEPTH*sizeof(struct mplshdr) < MIN_IPV6_MTU_SIZE,
+		"ICMP6 payload too large");
 
 static void mpls_output(struct rte_mbuf *m);
 
@@ -619,8 +629,12 @@ mpls_icmp_df(struct ifnet *ifp, struct rte_mbuf *m,
 	     enum mpls_payload_type payload_type,
 	     int destmtu)
 {
-	return mpls_error(ifp, m, cache, payload_type, ICMP_DEST_UNREACH,
-			  ICMP_FRAG_NEEDED, destmtu);
+	if (payload_type == MPT_IPV4)
+		return mpls_error(ifp, m, cache, payload_type, ICMP_DEST_UNREACH,
+				  ICMP_FRAG_NEEDED, destmtu);
+
+	return mpls_error(ifp, m, cache, payload_type, ICMP6_PACKET_TOO_BIG,
+			  0, destmtu);
 }
 
 static inline bool
@@ -961,7 +975,7 @@ nh_mpls_frag_out(struct ifnet *out_ifp, struct rte_mbuf *m, void *obj)
 }
 
 static void
-nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
+nh_mpls_ip_fragment(struct ifnet *out_ifp,
 		    enum nh_type nht, struct next_hop *nh,
 		    bool have_labels, int adjust, uint8_t ttl,
 		    struct rte_mbuf *m, struct mpls_label_cache *cache,
@@ -1010,29 +1024,20 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 	fobj.input_ifp = input_ifp;
 
 	offset = (num_labels * sizeof(struct mplshdr));
+	/* Processing Labeled IP datagram which is too big */
+	dp_pktmbuf_l2_len(m) += offset;
 
-	if (payload_type == MPT_IPV4) {
-		const struct iphdr *ip;
+	const struct iphdr *ip = iphdr(m);
+	const struct ip6_hdr *ip6 = ip6hdr(m);
 
-		dp_pktmbuf_l2_len(m) += offset;
-
-		ip = iphdr(m);
-		if (!ip_valid_packet(m, ip)) {
-			dp_pktmbuf_l2_len(m) -= offset;
-			DBG_MPLS_PKTERR(out_ifp, m,
-				 "Packet needing fragmentation not valid\n");
-			mpls_if_incr_out_errors(out_ifp);
-			dp_pktmbuf_notify_and_free(m);
-			return;
-		}
-
+	if (ip_valid_packet(m, ip)) {
 		/* check for ip df bit */
 		if (ip->frag_off & htons(IP_DF)) {
 			dp_pktmbuf_l2_len(m) = dp_pktmbuf_l2_len(m) -
 				offset + fobj.pop_offset;
 			if (have_labels) {
 				icmp = mpls_icmp_df(out_ifp, m, cache,
-						    payload_type,
+						    MPT_IPV4,
 						    out_ifp->if_mtu);
 				if (icmp)
 					nh_eth_output_mpls(
@@ -1073,10 +1078,32 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
 		mpls_mtu = mpls_mtu - offset + fobj.pop_offset;
 
 		ip_fragment_mtu(out_ifp, mpls_mtu, m, &fobj, nh_mpls_frag_out);
-	} else {
-		mpls_if_incr_out_errors(out_ifp);
-		dp_pktmbuf_notify_and_free(m);
+		return;
 	}
+	if (ip6_valid_packet(m, ip6)) {
+		/* Generating icmp6 packet too big message and forwarding to the source */
+		dp_pktmbuf_l2_len(m) = dp_pktmbuf_l2_len(m) -
+			offset + fobj.pop_offset;
+		if (have_labels) {
+			icmp = mpls_icmp_df(out_ifp, m, cache,
+					MPT_IPV6,
+					out_ifp->if_mtu);
+			if (icmp)
+				nh_eth_output_mpls(nht, nh, IPV6_DEFAULT_HOPLIMIT,
+						icmp, cache, input_ifp);
+			else
+				mpls_if_incr_out_errors(out_ifp);
+		} else
+			icmp6_error(out_ifp, m, ICMP6_PACKET_TOO_BIG, 0,
+					htons(out_ifp->if_mtu));
+
+		dp_pktmbuf_notify_and_free(m);
+		return;
+	}
+	DBG_MPLS_PKTERR(out_ifp, m,
+			"Can't fragment non-IP packet\n");
+	mpls_if_incr_out_errors(out_ifp);
+	dp_pktmbuf_notify_and_free(m);
 }
 
 /*
@@ -1086,8 +1113,7 @@ nh_mpls_ip_fragment(struct ifnet *out_ifp, enum mpls_payload_type payload_type,
  * go. cache should hold any labels to be pushed.
  */
 static inline void
-nh_mpls_forward(enum mpls_payload_type payload_type,
-		enum nh_type nht, struct next_hop *nh,
+nh_mpls_forward(enum nh_type nht, struct next_hop *nh,
 		bool have_labels, uint8_t ttl,
 		struct rte_mbuf *m, struct mpls_label_cache *cache,
 		struct ifnet *input_ifp)
@@ -1104,11 +1130,10 @@ nh_mpls_forward(enum mpls_payload_type payload_type,
 	out_ifp = dp_nh_get_ifp(nh);
 	adjust = mpls_label_cache_adjust(m, cache, RTE_ETHER_HDR_LEN);
 	if (likely(rte_pktmbuf_pkt_len(m) + adjust - RTE_ETHER_HDR_LEN <=
-		   out_ifp->if_mtu)) {
-		nh_eth_output_mpls(nht, nh, ttl, m, cache,
-				   input_ifp);
-	} else
-		nh_mpls_ip_fragment(out_ifp, payload_type, nht, nh,
+		   out_ifp->if_mtu))
+		nh_eth_output_mpls(nht, nh, ttl, m, cache, input_ifp);
+	else
+		nh_mpls_ip_fragment(out_ifp, nht, nh,
 				    have_labels, adjust, ttl, m, cache,
 				    input_ifp);
 }
@@ -1479,7 +1504,7 @@ static bool mpls_reswitch_as_ipv6(struct ifnet *input_ifp,
 
 	if (unlikely(!ip6_valid_packet(m, ip6))) {
 		DBG_MPLS_PKTERR(input_ifp, m,
-				"failed to reswitch as ipv6 - invalid pkt");
+				"failed to reswitch as ipv6 - invalid pkt\n");
 		return false;
 	}
 
@@ -1641,7 +1666,7 @@ mpls_labeled_forward(struct ifnet *input_ifp, bool local,
 			return;
 		}
 		if (likely(ret == NH_FWD_SUCCESS)) {
-			nh_mpls_forward(payload_type, nht, nh, true,
+			nh_mpls_forward(nht, nh, true,
 					ttl, m, &cache, input_ifp);
 			return;
 		}
@@ -1797,7 +1822,7 @@ void mpls_unlabeled_input(struct ifnet *input_ifp, struct rte_mbuf *m,
 
 	ret = nh_fwd_mpls(nh, m, false, payload_type, &cache, NULL);
 	if (likely(ret == NH_FWD_SUCCESS)) {
-		nh_mpls_forward(payload_type, nht, nh, false, ttl,
+		nh_mpls_forward(nht, nh, false, ttl,
 				m, &cache, input_ifp);
 		return;
 	}

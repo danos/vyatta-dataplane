@@ -1270,7 +1270,7 @@ static void s2s_toobig6_main(vrfid_t vrfid)
 	 *  Expected ICMP response
 	 *  Note that s2s sets MTU based on policy effective block size
 	 */
-	icmplen = 1280 - sizeof(struct ip6_hdr) - sizeof(struct icmp6_hdr);
+	icmplen = ICMP6_PAYLOAD_SIZE;
 	icmp_pak = dp_test_create_icmp_ipv6_pak(conf.port_west_ip,
 						conf.client_local_ip,
 						ICMP6_PACKET_TOO_BIG,

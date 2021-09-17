@@ -46,7 +46,15 @@
 #include "protobuf.h"
 #include "protobuf/ICMPRateLimConfig.pb-c.h"
 
-#define ICMP6_PLD_MAXLEN (1280 - sizeof(struct ip6_hdr))
+/*
+ * ICMP6 payload size. The below code assumes the size includes an
+ * allowance for the ICMP6 header. There is also the assumption that
+ * the size of any generated ICMP6 packet is less than the minimum
+ * IPv6 MTU size.
+ */
+#define ICMP6_PLD_MAXLEN (ICMP6_PAYLOAD_SIZE + sizeof(struct icmp6_hdr))
+static_assert(ICMP6_PLD_MAXLEN + sizeof(struct ip6_hdr) < 1280,
+		"ICMP6 payload too large");
 /* Option Formats
    Length	8-bit unsigned integer.  The length of the option (including
 		the type and length fields) in units of 8 octets.   */

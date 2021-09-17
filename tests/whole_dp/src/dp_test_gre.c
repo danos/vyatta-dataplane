@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2015-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -648,7 +648,7 @@ DP_START_TEST(gre_encap, simple_encap_ipv6)
 	inner_ip = ip6hdr(m);
 	exp_icmp = dp_test_exp_create_m(NULL, 1);
 
-	len = 1280 - sizeof(struct icmp6_hdr) - sizeof(struct ip6_hdr);
+	len = ICMP6_PAYLOAD_SIZE;
 	dp_test_exp_set_pak_m(
 		exp_icmp, 0, dp_test_create_icmp_ipv6_pak(
 			"1:1:1::1", "1:1:1::2",	ICMP6_PACKET_TOO_BIG,

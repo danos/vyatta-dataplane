@@ -557,7 +557,7 @@ DP_START_TEST(vti_toobig, vti_toobig)
 	 * Expected ICMP response
 	 * Note that VTI sets MTU based on policy effective block size
 	 */
-	icmplen = 1280 - sizeof(struct ip6_hdr) - sizeof(struct icmp6_hdr);
+	icmplen = ICMP6_PAYLOAD_SIZE;
 	icmp_pak = dp_test_create_icmp_ipv6_pak(PORT_WEST6, CLIENT_LOCAL6,
 						ICMP6_PACKET_TOO_BIG,
 						0, /* code */
