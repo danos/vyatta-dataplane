@@ -1313,6 +1313,7 @@ void session_set_protocol_state_timeout(struct session *s, uint8_t state,
 	s->se_timeout = timeout;
 	s->se_protocol_state = state;
 	s->se_gen_state = gen_state;
+	s->se_etime = get_dp_uptime() + se_timeout(s);
 }
 
 /* Set the custom timeout */
