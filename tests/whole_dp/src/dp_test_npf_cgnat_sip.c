@@ -940,3 +940,37 @@ DP_START_TEST(sip7, test)
 			    "\r\n", post.len, post.len, post.buf);
 
 } DP_END_TEST;
+
+/*
+ * sip8.  Parse SIP Call ID
+ */
+DP_DECL_TEST_CASE(cgn_sip, sip8, NULL, NULL);
+DP_START_TEST(sip8, test)
+{
+	struct bstr callid;
+	bool ok;
+
+	/* Parse Call ID 1 */
+
+	struct bstr line1 = BSTR_K("Call-ID: j2qu348ek2328ws@foo.com\r\n");
+
+	ok = csip_parse_sip_callid(&line1, &callid);
+	dp_test_fail_unless(ok, "Failed to parse Call ID in line1");
+
+	ok = bstr_eq(&callid, BSTRL("j2qu348ek2328ws"));
+	dp_test_fail_unless(ok, "Call ID ex \"j2qu348ek2328ws\", got \"%*.*s\"",
+			    callid.len, callid.len, callid.buf);
+
+	/* Parse Call ID 2 */
+
+	struct bstr line2 = BSTR_K("Call-ID : \r\n j2qu348ek2328wsABC@foo.com\r\n");
+
+	ok = csip_parse_sip_callid(&line2, &callid);
+	dp_test_fail_unless(ok, "Failed to parse Call ID in line2");
+
+	/* Call ID should be truncated to CSIP_CALLID_SZ */
+	ok = bstr_eq(&callid, BSTRL("j2qu348ek2328wsA"));
+	dp_test_fail_unless(ok, "Call ID ex \"j2qu348ek2328wsA\", got \"%*.*s\"",
+			    callid.len, callid.len, callid.buf);
+
+} DP_END_TEST;

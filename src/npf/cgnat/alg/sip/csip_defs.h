@@ -7,6 +7,9 @@
 #ifndef CSIP_DEFS_H
 #define CSIP_DEFS_H
 
+/* Use a fixed size for media table call ID hash key */
+#define CSIP_CALLID_SZ 16
+
 /*
  * SIP Request Methods.  There are 14 Request methods.  SIP_REQ_OTHER is used
  * to classify any that we do not recognise.

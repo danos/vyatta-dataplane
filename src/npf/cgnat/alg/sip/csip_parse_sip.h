@@ -19,4 +19,6 @@ int csip_parse_start_line(struct bstr const *line, enum csip_req *req,
 bool csip_classify_sip_start(struct csip_lines *sip_lines);
 bool csip_classify_sip(struct csip_lines *sip_lines, uint32_t index);
 
+bool csip_parse_sip_callid(struct bstr const *line, struct bstr *callid);
+
 #endif /* CSIP_PARSE_SIP_H */

@@ -207,3 +207,71 @@ bool csip_classify_sip(struct csip_lines *sip_lines, uint32_t index)
 
 	return true;
 }
+
+/*
+ * Parse SIP Call-ID
+ *
+ * The Call-ID is a globally unique identifier for the call.  This is
+ * typically a large number, optionally appended with the senders IP address.
+ *
+ * We only save the generated number part of the Call-ID since we only ever
+ * use it in the context of a CGNAT session, which is itself a function of the
+ * senders IP address.
+ *
+ * A typical Call-ID number is a 128 bit (16 bytes) cryptographic key, however
+ * there is no absolute minimum or maximum.  It is common for SIP clients to
+ * set maximum lengths, or to provide an option to configure a maximum length.
+ *
+ * We use CSIP_CALLID_SZ to set a maximum length of 16 bytes.
+ *
+ * There may be multiple SIP calls per SIP CGNAT session, each with a
+ * different Call-ID.  For example, one call might just convey the dailtone or
+ * a recorded message before a separate call is established for the voice
+ * conversation.  Simultaneous calls may occur if voice, video and data are
+ * being shared, e.g. in a whiteboard session.
+ *
+ * We use the callid as a hash into the media hash-table.  This is where we
+ * temporarily store media (rtp) addresses and ports while the call is being
+ * negotiated.
+ *
+ * We set the input parameter 'callid' to point to the call-ID generated
+ * number within the line.  If the caller needs to store this value for longer
+ * than the duration of the packet then it MUST make a copy.
+ *
+ * Format:
+ *
+ * Call-ID  =  ( "Call-ID" / "i" ) HCOLON callid
+ * callid   =  word [ "@" word ]
+ *
+ * i.e.  Call-ID: (generated number)[@(ip address)]
+ * e.g. "Call-ID: j2qu348ek2328ws\r\n"
+ *
+ */
+bool csip_parse_sip_callid(struct bstr const *line, struct bstr *callid)
+{
+	struct bstr head, tail;
+
+	/* Split method string from call ID */
+	if (!bstr_split_term_after(line, ':', &head, &tail))
+		return false;
+
+	/* There may be linear whitespace if there is a continuation line */
+	bstr_lws_ltrim(&tail);
+
+	/*
+	 * We are only interested in the generated-number part of the Call ID.
+	 * A SIP 'word' may contain many non-alphanumeric characters but may
+	 * *not* contain '@' or '\r' so we use those to find the end of the
+	 * generated-number
+	 */
+	head = tail;
+	if (!bstr_split_terms_before(&head, BSTRL("@\r"), callid, &tail))
+		return false;
+
+	/* We are only interested in CSIP_CALLID_SZ bytes */
+	if (callid->len > CSIP_CALLID_SZ)
+		if (!bstr_split_length(callid, CSIP_CALLID_SZ, callid, &tail))
+			return false;
+
+	return true;
+}
