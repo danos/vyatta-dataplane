@@ -437,6 +437,49 @@ DP_START_TEST(sip4, test)
 
 } DP_END_TEST;
 
+/*
+ * Split a SIP message bstr into lines, and classify each line
+ */
+static void sip_split_and_classify(struct bstr *msg, struct csip_lines *sip_lines,
+				   const char *name)
+{
+	uint32_t i;
+	bool ok;
+
+	/*
+	 * Parse SIP message and store each line as a bstr in the sip_lines[]
+	 * array.
+	 */
+	ok = csip_split_lines(msg, sip_lines);
+
+	dp_test_fail_unless(ok, "%s: Failed to split lines", name);
+
+	/*
+	 * Classify the SIP message start-line
+	 */
+	ok = csip_classify_sip_start(sip_lines);
+
+	dp_test_fail_unless(ok, "%s: Failed to classify SIP start-line", name);
+	dp_test_fail_unless(sip_lines->lines[0].type == SIP_LINE_REQ,
+			    "%s: Line 0, expected REQ", name);
+
+	/*
+	 * Classify the SIP lines
+	 */
+	for (i = 1; i < sip_lines->m.sdp_index - 1; i++) {
+		ok = csip_classify_sip(sip_lines, i);
+		dp_test_fail_unless(ok, "%s: Failed to classify SIP line %u", name, i);
+	}
+
+	/*
+	 * Classify the SDP lines
+	 */
+	for (i = sip_lines->m.sdp_index; i < sip_lines->m.used; i++) {
+		ok = csip_classify_sdp(sip_lines, i);
+		dp_test_fail_unless(ok, "%s: Failed to classify SDP line %u", name, i);
+	}
+}
+
 
 #define CGN_SIP_TEST1_SZ 1
 
@@ -665,18 +708,25 @@ DP_START_TEST(sip6, test)
 	 * Parse SIP message and store each line as a bstr in the sip_lines[]
 	 * array.
 	 */
-	ok = csip_split_lines(&orig, sip_lines);
-	dp_test_fail_unless(ok, "Failed to split lines");
+	sip_split_and_classify(&orig, sip_lines, "sip6");
 
 	dp_test_fail_unless(sip_lines->m.used == 22,
 			    "Expected 22 lines, got %u", sip_lines->m.used);
 
+	dp_test_fail_unless(sip_lines->lines[3].type == SIP_LINE_SIP,
+			    "Line 3, expected SIP");
+
+	dp_test_fail_unless(sip_lines->lines[3].sip == SIP_HDR_FROM,
+			    "Line 3, expected From");
+
+	dp_test_fail_unless(sip_lines->m.sip_index[SIP_HDR_FROM] == 3,
+			    "From index, expected 3 got %u",
+			    sip_lines->m.sip_index[SIP_HDR_FROM]);
 
 	/*
 	 * For each line of orig SIP message, translate the 'From' line and
 	 * copy remaining lines into a new buffer.
 	 */
-	const struct bstr from = BSTR_K("From:");
 	struct bstr oaddr = BSTR_K("1.1.1.2");
 	struct bstr oport = BSTR_K("5060");
 	struct bstr taddr = BSTR_K("30.30.30.2");
@@ -685,7 +735,6 @@ DP_START_TEST(sip6, test)
 	uint32_t nlines = sip_lines->m.used;
 	char new_buf[2000];
 	struct bstr new;
-	int offs;
 
 	/* Create a counted string using new_buf[] storage */
 	ok = bstr_attach_unmanaged(&new, new_buf, 0, sizeof(new_buf));
@@ -693,11 +742,9 @@ DP_START_TEST(sip6, test)
 
 	for (i = 0; i < nlines; i++) {
 
-		/* Look for 'From' header */
-		offs = bstr_find_str(&lines[i].b, &from);
-
-		/* We expect the 'From' string at the start of the line */
-		if (offs == 0) {
+		/* 'From' header line? */
+		if (sip_lines->lines[i].type == SIP_LINE_SIP &&
+		    sip_lines->lines[i].sip == SIP_HDR_FROM) {
 			ok = csip_find_and_translate_uri(&lines[i].b, &new,
 							 &oaddr, &oport, &taddr, &tport);
 			dp_test_fail_unless(ok, "Failed to translate 'From'");
