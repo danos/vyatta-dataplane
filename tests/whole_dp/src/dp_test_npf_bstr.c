@@ -247,3 +247,48 @@ DP_START_TEST(bstr3, test)
 	dp_test_fail_unless(ok, "error bstr_prefix_ascii_case");
 
 } DP_END_TEST;
+
+/*
+ * bstr4. Tests bstr_split_ascii_non_alpha
+ */
+DP_DECL_TEST_CASE(bstr, bstr4, NULL, NULL);
+DP_START_TEST(bstr4, test)
+{
+	struct bstr b = BSTR_K("Abcdef; xxx");
+	struct bstr head, tail;
+	bool ok;
+
+	/* Test split *after* first non-alphanumeric char */
+
+	ok = bstr_split_ascii_non_alpha_after(&b, &head, &tail);
+	dp_test_fail_unless(ok, "error bstr_split_ascii_non_alpha");
+
+	ok = bstr_eq(&head, BSTRL("Abcdef;"));
+	dp_test_fail_unless(ok, "error after non-alpha split,"
+			    "exp \"Abcdef;\" got \"%*.*s\"",
+			    head.len, head.len, head.buf);
+
+	ok = bstr_eq(&tail, BSTRL(" xxx"));
+	dp_test_fail_unless(ok, "error after non-alpha split,"
+			    "exp \" xxx\" got \"%*.*s\"",
+			    tail.len, tail.len, tail.buf);
+
+	/* Test split *before* first non-alphanumeric char */
+
+	head = BSTR_INIT;
+	tail = BSTR_INIT;
+
+	ok = bstr_split_ascii_non_alpha_before(&b, &head, &tail);
+	dp_test_fail_unless(ok, "error bstr_split_ascii_non_alpha");
+
+	ok = bstr_eq(&head, BSTRL("Abcdef"));
+	dp_test_fail_unless(ok, "error after non-alpha split,"
+			    "exp \"Abcdef\" got \"%*.*s\"",
+			    head.len, head.len, head.buf);
+
+	ok = bstr_eq(&tail, BSTRL("; xxx"));
+	dp_test_fail_unless(ok, "error after non-alpha split,"
+			    "exp \"; xxx\" got \"%*.*s\"",
+			    tail.len, tail.len, tail.buf);
+
+} DP_END_TEST;

@@ -56,6 +56,11 @@ static inline bool ascii_crlf(uint8_t const *p)
 	return p[0] == '\r' && p[1] == '\n';
 }
 
+static inline bool ascii_isalpha(uint8_t c)
+{
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
 /*
  * Ensure that ->buf is always non NULL and '\0' terminated.
  */
@@ -435,6 +440,42 @@ bool bstr_split_precs(struct bstr const *parent, struct bstr const *precs,
 
 found:
 	return bstr_split_length(parent, pi + 1, headp, tailp);
+}
+
+/* Find first non alphabetic ascii character */
+static int bstr_find_ascii_non_alpha(struct bstr const *hs)
+{
+	int const len = hs->len;
+	uint8_t *p = hs->buf;
+	int i;
+
+	for (i = 0; i < len; ++i, ++p)
+		if (!ascii_isalpha(*p))
+			return i;
+
+	return -1;
+}
+
+/* Split before the first non alphabetic ascii character */
+bool bstr_split_ascii_non_alpha_before(struct bstr const *parent,
+				       struct bstr *headp, struct bstr *tailp)
+{
+	int index = bstr_find_ascii_non_alpha(parent);
+	if (index < 0)
+		return false;
+
+	return bstr_split_length(parent, index, headp, tailp);
+}
+
+/* Split after the first non alphabetic ascii character */
+bool bstr_split_ascii_non_alpha_after(struct bstr const *parent,
+				      struct bstr *headp, struct bstr *tailp)
+{
+	int index = bstr_find_ascii_non_alpha(parent);
+	if (index < 0)
+		return false;
+
+	return bstr_split_length(parent, index + 1, headp, tailp);
 }
 
 int bstr_find_str(struct bstr const *hs, struct bstr const *nd)

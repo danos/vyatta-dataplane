@@ -361,6 +361,14 @@ bool bstr_split_after_substr(struct bstr const *parent, struct bstr const *sub,
 bool bstr_split_before_substr(struct bstr const *parent, struct bstr const *sub,
 			      struct bstr *headp, struct bstr *tailp);
 
+/* Split before the first non alphabetic ascii character */
+bool bstr_split_ascii_non_alpha_before(struct bstr const *parent,
+				       struct bstr *headp, struct bstr *tailp);
+
+/* Split after the first non alphabetic ascii character */
+bool bstr_split_ascii_non_alpha_after(struct bstr const *parent,
+				      struct bstr *headp, struct bstr *tailp);
+
 /*
  * Strip whitespace from the beginning (ltrim), end (rtrim), or both side
  * (trim) of a string.
