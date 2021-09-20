@@ -91,6 +91,7 @@ DP_START_TEST(bstr2, test)
 {
 	const char *const_buf = " \t abcdef:123456\t  ";
 	struct bstr b = BSTR_INIT;
+	int len = strlen(const_buf);
 	char buf[200];
 	bool ok;
 
@@ -103,6 +104,7 @@ DP_START_TEST(bstr2, test)
 
 	ok = bstr_addstr(&b, const_buf);
 	dp_test_fail_unless(ok, "error bstr_addstr");
+	dp_test_fail_unless(b.len == len, "b len exp %d, got %d", len, b.len);
 
 	/* bstr_ltrim */
 
@@ -114,6 +116,9 @@ DP_START_TEST(bstr2, test)
 			    "exp \"abcdef:123456\t  \" got \"%*.*s\"",
 			    b.len, b.len, b.buf);
 
+	len -= 3;
+	dp_test_fail_unless(b.len == len, "b len exp %d, got %d", len, b.len);
+
 	/* bstr_rtrim */
 
 	ok = bstr_rtrim(&b);
@@ -123,6 +128,105 @@ DP_START_TEST(bstr2, test)
 	dp_test_fail_unless(ok, "error with b after rtrim, "
 			    "exp \"abcdef:123456\" got \"%*.*s\"",
 			    b.len, b.len, b.buf);
+
+	len -= 3;
+	dp_test_fail_unless(b.len == len, "b len exp %d, got %d", len, b.len);
+
+	/*
+	 * bstr_lws_ltrim
+	 */
+	struct bstr b2 = BSTR_K(" \r\n\tabcdef:123456\t \r\n  ");
+
+	len = strlen(" \r\n\tabcdef:123456\t \r\n  ");
+	dp_test_fail_unless(b2.len == len, "b2 len exp %d, got %d", len, b2.len);
+
+	ok = bstr_lws_ltrim(&b2);
+	dp_test_fail_unless(ok, "error bstr_lws_ltrim");
+
+	len -= 4;
+	dp_test_fail_unless(b2.len == len, "b2 len exp %d, got %d", len, b2.len);
+
+	ok = bstr_eq(&b2, BSTRL("abcdef:123456\t \r\n  "));
+
+	dp_test_fail_unless(ok, "error with b2 after lws ltrim, "
+			    "exp \"abcdef:123456\t \r\n  \" got \"%*.*s\"",
+			    b2.len, b2.len, b2.buf);
+
+	/* bstr_lws_rtrim */
+
+	ok = bstr_lws_rtrim(&b2);
+	dp_test_fail_unless(ok, "error bstr_lws_rtrim");
+
+	ok = bstr_eq(&b2, BSTRL("abcdef:123456"));
+	dp_test_fail_unless(ok, "error with b2 after lws rtrim, "
+			    "exp \"abcdef:123456\" got \"%*.*s\"",
+			    b2.len, b2.len, b2.buf);
+
+	/*
+	 * bstr_lws_rtrim and "A  "
+	 */
+	struct bstr b3 = BSTR_K("A  ");
+
+	bstr_lws_rtrim(&b3);
+	ok = bstr_eq(&b3, BSTRL("A"));
+	dp_test_fail_unless(ok, "error with b3 after lws rtrim, "
+			    "exp \"A\" got \"%*.*s\"",
+			    b3.len, b3.len, b3.buf);
+
+	/*
+	 * bstr_lws_rtrim and "  "
+	 */
+	struct bstr b4 = BSTR_K("  ");
+
+	bstr_lws_rtrim(&b4);
+	ok = bstr_eq(&b4, BSTRL(""));
+	dp_test_fail_unless(ok, "error with b4 after lws rtrim, "
+			    "exp \"\" got \"%*.*s\"",
+			    b4.len, b4.len, b4.buf);
+
+	/*
+	 * bstr_lws_rtrim and "\r\n "
+	 */
+	struct bstr b5 = BSTR_K("\r\n ");
+
+	bstr_lws_rtrim(&b5);
+	ok = bstr_eq(&b5, BSTRL(""));
+	dp_test_fail_unless(ok, "error with b5 after lws rtrim, "
+			    "exp \"\" got \"%*.*s\"",
+			    b5.len, b5.len, b5.buf);
+
+	/*
+	 * bstr_lws_ltrim and "  A"
+	 */
+	struct bstr b6 = BSTR_K("  A");
+
+	bstr_lws_ltrim(&b6);
+	ok = bstr_eq(&b6, BSTRL("A"));
+	dp_test_fail_unless(ok, "error with b6 after lws ltrim, "
+			    "exp \"A\" got \"%*.*s\"",
+			    b6.len, b6.len, b6.buf);
+
+	/*
+	 * bstr_lws_ltrim and "  "
+	 */
+	struct bstr b7 = BSTR_K("  ");
+
+	bstr_lws_ltrim(&b7);
+	ok = bstr_eq(&b7, BSTRL(""));
+	dp_test_fail_unless(ok, "error with b7 after lws ltrim, "
+			    "exp \"\" got \"%*.*s\"",
+			    b7.len, b7.len, b7.buf);
+
+	/*
+	 * bstr_lws_ltrim and "\r\n "
+	 */
+	struct bstr b8 = BSTR_K("\r\n ");
+
+	bstr_lws_ltrim(&b8);
+	ok = bstr_eq(&b8, BSTRL(""));
+	dp_test_fail_unless(ok, "error with b8 after lws ltrim, "
+			    "exp \"\" got \"%*.*s\"",
+			    b8.len, b8.len, b8.buf);
 
 } DP_END_TEST;
 

@@ -369,4 +369,8 @@ bool bstr_ltrim(struct bstr *bs);
 bool bstr_rtrim(struct bstr *bs);
 bool bstr_trim(struct bstr *bs);
 
+/* Trim linear whitespace (LWSP) */
+bool bstr_lws_ltrim(struct bstr *bs);
+bool bstr_lws_rtrim(struct bstr *bs);
+
 #endif /* BSTR_H */

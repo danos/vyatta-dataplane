@@ -44,6 +44,18 @@ static inline uint8_t ascii_toupper(uint8_t c)
 	return c;
 }
 
+/* Is whitespace? i.e. a space or a tab */
+static inline bool ascii_wsp(uint8_t c)
+{
+	return c == ' ' || c == '\t';
+}
+
+/* Is this a CRLF sequence? */
+static inline bool ascii_crlf(uint8_t const *p)
+{
+	return p[0] == '\r' && p[1] == '\n';
+}
+
 /*
  * Ensure that ->buf is always non NULL and '\0' terminated.
  */
@@ -461,14 +473,14 @@ int bstr_find_term(struct bstr const *parent, uint8_t terminator)
 bool bstr_ltrim(struct bstr *bs)
 {
 	int const len = bs->len;
-	uint8_t *c = bs->buf;
+	uint8_t *p = bs->buf;
 	int i;
 
 	if (bs->allocated & BSTR_MANAGED_BIT)
 		return false;
 
-	for (i = 0; i < len; i++, c++)
-		if (*c != ' ' && *c != '\t')
+	for (i = 0; i < len; i++, p++)
+		if (!ascii_wsp(*p))
 			return bstr_un_drop_left(bs, i);
 
 	return true;
@@ -477,11 +489,11 @@ bool bstr_ltrim(struct bstr *bs)
 bool bstr_rtrim(struct bstr *bs)
 {
 	int const len = bs->len;
-	uint8_t *c = bs->buf + len - 1;
+	uint8_t *p = bs->buf + len - 1;
 	int i;
 
-	for (i = 0; i < len; i++, c--)
-		if (*c != ' ' && *c != '\t')
+	for (i = 0; i < len; i++, p--)
+		if (!ascii_wsp(*p))
 			return bstr_drop_right(bs, i);
 
 	return true;
@@ -494,6 +506,89 @@ bool bstr_trim(struct bstr *bs)
 
 	if (!bstr_rtrim(bs))
 		return false;
+
+	return true;
+}
+
+/* Is this a CRLF followed by WSP? */
+static inline bool ascii_crlf_wsp(uint8_t const *p)
+{
+	return ascii_crlf(p) && ascii_wsp(*(p+2));
+}
+
+/*
+ * Trim linear whitespace (LWSP) at start of a string
+ *
+ * LWSP = *(WSP / CRLF WSP)
+ */
+bool bstr_lws_ltrim(struct bstr *bs)
+{
+	int const len = bs->len;
+	uint8_t *p = bs->buf;
+	int i;
+
+	/* Left-trim not permitted on managed strings */
+	if (bs->allocated & BSTR_MANAGED_BIT)
+		return false;
+
+	for (i = 0; i < len; i++, p++) {
+
+		if (ascii_wsp(*p))
+			continue;
+
+		/*
+		 * A CRLF sequence in *only* considered LWS if it is followed
+		 * by a SP or a TAB
+		 */
+		if (i < len - 2 &&  ascii_crlf_wsp(p)) {
+			i += 2;
+			p += 2;
+			continue;
+		}
+		if (i == 0)
+			/* No WSP on left */
+			return true;
+
+		/* No more LWSP.  Drop everything to the left of this point */
+		return bstr_un_drop_left(bs, i);
+	}
+
+	/* string is all whitespace */
+	return bstr_un_drop_left(bs, len);
+
+	return true;
+}
+
+/* Trim linear whitespace (LWSP) at end of a string */
+bool bstr_lws_rtrim(struct bstr *bs)
+{
+	int const len = bs->len;
+	uint8_t *p = bs->buf + len - 1;
+	int i;
+
+	/* Simple case.  There is no WSP on the right. */
+	if (!ascii_wsp(*p))
+		return true;
+
+	for (i = len - 1; i >= 0; i--, p--) {
+		/*
+		 * A CRLF sequence in only considered LWS if it is followed by
+		 * a SP or a TAB
+		 */
+		if (i >= 2 &&  ascii_crlf_wsp(p-2)) {
+			i -= 2;
+			p -= 2;
+			continue;
+		}
+		if (ascii_wsp(*p))
+			continue;
+
+		/* No more LWSP.  Drop everything after this point */
+		return bstr_drop_right(bs, len - i - 1);
+	}
+
+	/* string is all whitespace */
+	bstr_drop_right(bs, len);
 
 	return true;
 }
