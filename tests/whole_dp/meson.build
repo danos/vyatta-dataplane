@@ -91,6 +91,7 @@ check_tests = [
         'dp_test_npf_alg_rpc.c',
         'dp_test_npf_alg_tftp.c',
         'dp_test_npf_bridge.c',
+        'dp_test_npf_bstr.c',
         'dp_test_npf_cgnat.c',
         'dp_test_npf_cgnat_pptp.c',
         'dp_test_npf_cgnat_sip.c',
