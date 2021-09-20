@@ -275,3 +275,31 @@ bool csip_parse_sip_callid(struct bstr const *line, struct bstr *callid)
 
 	return true;
 }
+
+/*
+ * Is the Content-Type media sdp?
+ *
+ * If this is *not* true for Invite Requests or 150 or 200 Responses, then we
+ * ignore the message body.  Note that it is also possible for a message to
+ * contain a Content-Type header but for the message body to be empty.
+ *
+ * Examples:
+ *
+ * Content-Type: application/sdp
+ * c: text/html; charset=ISO-8859-4
+ *
+ * Note that is is possible to have an smime encrypted SDP body within a SIP
+ * message.  We obviously cannot handle these.
+ *
+ * Content-Type: application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m
+ * Content-Disposition: attachment; filename=smime.p7m; handling=required
+ *
+ * A counter will be added for Content-Types that we do not understand.  We
+ * may also want to consider adding a configuration option to enable logging
+ * these (though that would require more parsing to extract the type and
+ * subtype.  See csip_parse_sip_content_type in the unit-tests).
+ */
+bool csip_sip_content_type_is_sdp(struct bstr const *line)
+{
+	return bstr_find_str(line, BSTRL("application/sdp")) > 0;
+}

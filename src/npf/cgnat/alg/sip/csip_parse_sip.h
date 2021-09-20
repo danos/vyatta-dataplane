@@ -20,5 +20,6 @@ bool csip_classify_sip_start(struct csip_lines *sip_lines);
 bool csip_classify_sip(struct csip_lines *sip_lines, uint32_t index);
 
 bool csip_parse_sip_callid(struct bstr const *line, struct bstr *callid);
+bool csip_sip_content_type_is_sdp(struct bstr const *line);
 
 #endif /* CSIP_PARSE_SIP_H */

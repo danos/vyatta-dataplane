@@ -942,7 +942,49 @@ DP_START_TEST(sip7, test)
 } DP_END_TEST;
 
 /*
- * sip8.  Parse SIP Call ID
+ * Parse Content-Type header.  We interested to know if the sub-type is 'sdp'
+ * or not.
+ *
+ * Note: This could be greatly simplified (albeit with a lack of precision) by
+ * simply searching for the string 'sdp' in the line.
+ *
+ * Format:  "Content-Type: (type)/(subtype)"
+ */
+static bool csip_parse_sip_content_type(struct bstr const *line, struct bstr *type,
+					struct bstr *sub_type)
+{
+	struct bstr head, tail;
+
+	/* Split on colon after method name */
+	if (!bstr_split_term_after(line, ':', &head, &tail))
+		return false;
+
+	/*
+	 * There may be linear whitespace at the start of tail if there is a
+	 * continuation line.  Remove it.
+	 */
+	bstr_lws_ltrim(&tail);
+
+	/* Split of the '/' between the type and sub-type */
+	if (!bstr_split_term_after(&tail, '/', type, &tail))
+		return false;
+
+	/* Drop the '/' */
+	bstr_drop_right(type, 1);
+
+	/*
+	 * At the very least, 'tail' will end with CRLF and we will split on
+	 * the CR.  However there might also something line: "sdp; sdp-type=foo",
+	 * in which case we will split on the ';'.
+	 */
+	if (!bstr_split_ascii_non_alpha_before(&tail, sub_type, &tail))
+		return false;
+
+	return true;
+}
+
+/*
+ * sip8.  Parse SIP lines
  */
 DP_DECL_TEST_CASE(cgn_sip, sip8, NULL, NULL);
 DP_START_TEST(sip8, test)
@@ -972,5 +1014,39 @@ DP_START_TEST(sip8, test)
 	ok = bstr_eq(&callid, BSTRL("j2qu348ek2328wsA"));
 	dp_test_fail_unless(ok, "Call ID ex \"j2qu348ek2328wsA\", got \"%*.*s\"",
 			    callid.len, callid.len, callid.buf);
+
+	/* Parse Content-Type 1 */
+
+	struct bstr line3 = BSTR_K("Content-Type: application/sdp\r\n");
+	struct bstr type = BSTR_INIT, sub_type = BSTR_INIT;
+
+	ok = csip_parse_sip_content_type(&line3, &type, &sub_type);
+	dp_test_fail_unless(ok, "Failed to parse Content-Type in line3");
+
+	ok = bstr_eq(&type, BSTRL("application"));
+	dp_test_fail_unless(ok, "Content-Type ex \"application\", got \"%*.*s\"",
+			    type.len, type.len, type.buf);
+
+	ok = bstr_eq(&sub_type, BSTRL("sdp"));
+	dp_test_fail_unless(ok, "Content-Type ex \"sdp\", got \"%*.*s\"",
+			    sub_type.len, sub_type.len, sub_type.buf);
+
+	ok = csip_sip_content_type_is_sdp(&line3);
+	dp_test_fail_unless(ok, "Failed csip_sip_content_type_is_sdp");
+
+	/* Parse Content-Type 2 */
+
+	struct bstr line4 = BSTR_K("Content-Type: application/sdp; sdp-type=foo\r\n");
+
+	ok = csip_parse_sip_content_type(&line4, &type, &sub_type);
+	dp_test_fail_unless(ok, "Failed to parse Content-Type in line4");
+
+	ok = bstr_eq(&type, BSTRL("application"));
+	dp_test_fail_unless(ok, "Content-Type ex \"application\", got \"%*.*s\"",
+			    type.len, type.len, type.buf);
+
+	ok = bstr_eq(&sub_type, BSTRL("sdp"));
+	dp_test_fail_unless(ok, "Content-Type ex \"sdp\", got \"%*.*s\"",
+			    sub_type.len, sub_type.len, sub_type.buf);
 
 } DP_END_TEST;
