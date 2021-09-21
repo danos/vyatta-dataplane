@@ -1049,4 +1049,17 @@ DP_START_TEST(sip8, test)
 	dp_test_fail_unless(ok, "Content-Type ex \"sdp\", got \"%*.*s\"",
 			    sub_type.len, sub_type.len, sub_type.buf);
 
+	/* Parse User-Agent */
+
+	struct bstr line5 = BSTR_K("User-Agent: Csco-SIPGateway/IOS-12.x\r\n");
+	struct bstr user_agent = BSTR_INIT;
+
+	ok = csip_parse_sip_user_agent(&line5, &user_agent);
+	dp_test_fail_unless(ok, "Failed to parse User-Agent in line5");
+
+	ok = bstr_eq(&user_agent, BSTRL("Csco-SIPGateway/IOS-12.x"));
+	dp_test_fail_unless(ok, "User-Agent exp "
+			    "\"Csco-SIPGateway/IOS-12.x\", got \"%*.*s\"",
+			    user_agent.len, user_agent.len, user_agent.buf);
+
 } DP_END_TEST;

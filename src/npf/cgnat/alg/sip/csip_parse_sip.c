@@ -303,3 +303,28 @@ bool csip_sip_content_type_is_sdp(struct bstr const *line)
 {
 	return bstr_find_str(line, BSTRL("application/sdp")) > 0;
 }
+
+/*
+ * Parse User-Agent header.
+ *
+ * The user-agent header can contain anything.  We save the user-agent value
+ * from INVITE Requests for display and debug purposes.  This is useful in
+ * potentially identifying issues with a particular client software.
+ *
+ * e.g. "User-Agent: Cisco-SIPGateway/IOS-12.x"
+ */
+bool csip_parse_sip_user_agent(struct bstr const *line, struct bstr *user_agent)
+{
+	struct bstr head;
+
+	/* Split on colon after method name */
+	if (!bstr_split_term_after(line, ':', &head, user_agent))
+		return false;
+
+	/* Remove any LWS between the colon and the user-agent */
+	if (!bstr_lws_ltrim(user_agent))
+		return false;
+
+	/* Drop the CRLF at the end */
+	return bstr_drop_right(user_agent, 2);
+}
