@@ -267,6 +267,9 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 		if (!lle)
 			return 0;
 
+		if (llentry_has_been_used_and_clear(lle))
+			return 0;
+
 		rte_spinlock_lock(&lle->ll_lock);
 		arp_entry_destroy(ifp->if_lltable, lle);
 		rte_spinlock_unlock(&lle->ll_lock);
