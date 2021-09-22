@@ -123,38 +123,31 @@ DP_START_TEST(sip2, test)
 {
 	enum csip_req req = SIP_REQ_NONE;
 	uint resp_code = 0;
-	struct bstr sl = BSTR_INIT;
-	bool ok;
 	int rc;
 
 	/* Request start-line #1 */
 
-	ok = bstr_addbuf(&sl, BSTRL("INVITE sip:I.Wilson@192.0.2.1 SIP/2.0\r\n"));
-	dp_test_fail_unless(ok, "Failed to copy request start-line #1");
+	const struct bstr sl1 = BSTR_K("INVITE sip:I.Wilson@192.0.2.1 SIP/2.0\r\n");
 
-	rc = csip_parse_start_line(&sl, &req, &resp_code);
-	dp_test_fail_unless(rc == 0, "Failed to parse \"%s\"", sl.buf);
+	rc = csip_parse_start_line(&sl1, &req, &resp_code);
+	dp_test_fail_unless(rc == 0, "Failed to parse \"%s\"", sl1.buf);
 	dp_test_fail_unless(req == SIP_REQ_INVITE,
 			    "Failed to identify Invite");
-	bstr_release(&sl);
 
 	/* Request start-line #2 */
 
-	ok = bstr_addbuf(&sl, BSTRL("INVITE sip:I.Wilson@192.0.2.1 SIP/1.0\r\n"));
-	dp_test_fail_unless(ok, "Failed to copy request start-line #2");
+	const struct bstr sl2 = BSTR_K("INVITE sip:I.Wilson@192.0.2.1 SIP/1.0\r\n");
 
-	rc = csip_parse_start_line(&sl, &req, &resp_code);
+	rc = csip_parse_start_line(&sl2, &req, &resp_code);
 	dp_test_fail_unless(rc == -ALG_ERR_SIP_UNSP,
 			    "Failed to detect wrong unsupported version");
-	bstr_release(&sl);
 
 	/* Response start-line #1 */
 
-	/* Does not need to write to the buffer */
-	struct bstr const *slp = BSTRL("SIP/2.0 200 OK\r\n");
+	struct bstr const sl3 = BSTR_K("SIP/2.0 200 OK\r\n");
 
-	rc = csip_parse_start_line(slp, &req, &resp_code);
-	dp_test_fail_unless(rc == 0, "Failed to parse \"%s\"", slp->buf);
+	rc = csip_parse_start_line(&sl3, &req, &resp_code);
+	dp_test_fail_unless(rc == 0, "Failed to parse \"%s\"", sl3.buf);
 	dp_test_fail_unless(resp_code == 200,
 			    "Failed to identify Response code");
 

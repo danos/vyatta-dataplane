@@ -78,28 +78,19 @@ static enum csip_req csip_req_str2type(struct bstr const *method)
  *
  * "INVITE sip:I.Wilson@192.0.2.1 SIP/2.0\r\n"
  */
-static enum csip_req csip_parse_request_start_line(struct bstr const *msg, int *rc)
+static enum csip_req csip_parse_request_start_line(struct bstr const *line, int *rc)
 {
-	struct bstr line, tail;
-
-	/* Extract the start line. Do not allow continuation. */
-	if (!csip_get_line(msg, &line, &tail)) {
-		*rc = -ALG_ERR_SIP_PARSE_REQ;
-		return SIP_REQ_NONE;
-	}
-
-	/* Discard CRLF */
-	bstr_drop_right(&line, 2);
+	struct bstr tail;
 
 	/* We expect a minimum length of line */
-	if (line.len < SIP_REQ_STARTLINE_MIN) {
+	if (line->len < SIP_REQ_STARTLINE_MIN) {
 		*rc = -ALG_ERR_SIP_PARSE_REQ;
 		return SIP_REQ_NONE;
 	}
 
 	/* Method is first token; eat SP */
 	struct bstr method;
-	if (!bstr_split_term(&line, ' ', &method, &tail) || method.len < 2) {
+	if (!bstr_split_term(line, ' ', &method, &tail) || method.len < 2) {
 		*rc = -ALG_ERR_SIP_PARSE_REQ;
 		return SIP_REQ_NONE;
 	}
@@ -157,21 +148,12 @@ static bool csip_parse_response_code(struct bstr const *text, uint *code)
  * understand or support then we return an error.  ALG parsing stops, the
  * error is counted, and the packet is allowed to continue.
  */
-static uint csip_parse_response_start_line(struct bstr const *msg, int *rc)
+static uint csip_parse_response_start_line(struct bstr const *line, int *rc)
 {
-	struct bstr line, tail;
-
-	/* Extract the start line. Do not allow continuation. */
-	if (!csip_get_line(msg, &line, &tail)) {
-		*rc = -ALG_ERR_SIP_PARSE_RSP;
-		return 0;
-	}
-
-	/* Discard CRLF */
-	bstr_drop_right(&line, 2);
+	struct bstr head, tail;
 
 	/* We expect a minimum length of line */
-	if (line.len < SIP_RESP_STARTLINE_MIN) {
+	if (line->len < SIP_RESP_STARTLINE_MIN) {
 		*rc = -ALG_ERR_SIP_PARSE_RSP;
 		return 0;
 	}
@@ -179,13 +161,13 @@ static uint csip_parse_response_start_line(struct bstr const *msg, int *rc)
 	/* Version is first token */
 
 	/* Check version is SIP/2.0 - allow for syntax change */
-	if (!bstr_prefix(&line, BSTRL("SIP/2.0"))) {
+	if (!bstr_prefix(line, BSTRL("SIP/2.0"))) {
 		*rc = -ALG_ERR_SIP_UNSP;
 		return 0;
 	}
 
 	/* Move past version */
-	if (!bstr_split_term(&line, ' ', &line, &tail)) {
+	if (!bstr_split_term(line, ' ', &head, &tail)) {
 		*rc = -ALG_ERR_SIP_UNSP;
 		return 0;
 	}
@@ -218,20 +200,19 @@ static uint csip_parse_response_start_line(struct bstr const *msg, int *rc)
 /*
  * Parse a SIP message start-line
  *
- * This is the first thing we do when inspecting SIP msgs.  We are looking to
- * verify the SIP version, and to determine if it is a Request or a Response
- * message.
+ * We are looking to verify the SIP version, and to determine if it is a
+ * Request or a Response message.
  */
-int csip_parse_start_line(struct bstr const *msg, enum csip_req *req,
+int csip_parse_start_line(struct bstr const *line, enum csip_req *req,
 			  unsigned int *resp_code)
 {
 	int rc = 0;
 
 	/* First line of Response msgs always start with "SIP/" */
-	if (bstr_prefix(msg, BSTRL("SIP/")))
-		*resp_code = csip_parse_response_start_line(msg, &rc);
+	if (bstr_prefix(line, BSTRL("SIP/")))
+		*resp_code = csip_parse_response_start_line(line, &rc);
 	else
-		*req = csip_parse_request_start_line(msg, &rc);
+		*req = csip_parse_request_start_line(line, &rc);
 
 	return rc;
 }

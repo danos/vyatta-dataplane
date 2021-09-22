@@ -13,7 +13,7 @@
 
 struct bstr;
 
-int csip_parse_start_line(struct bstr const *msg, enum csip_req *req,
+int csip_parse_start_line(struct bstr const *line, enum csip_req *req,
 			  unsigned int *resp_code);
 
 bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
