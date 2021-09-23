@@ -292,3 +292,27 @@ DP_START_TEST(bstr4, test)
 			    tail.len, tail.len, tail.buf);
 
 } DP_END_TEST;
+
+/*
+ * bstr5. Tests  bstr_to_ipaddr and bstr_to_port
+ */
+DP_DECL_TEST_CASE(bstr, bstr5, NULL, NULL);
+DP_START_TEST(bstr5, test)
+{
+	struct bstr a1 = BSTR_K("10.0.0.1");
+	uint32_t a;
+	bool ok;
+
+	ok = bstr_to_ipaddr(&a1, &a);
+	dp_test_fail_unless(ok, "bstr_to_ipaddr failed");
+	dp_test_fail_unless(a == 0x0a000001, "Exp 0x0a000001, got 0x%08x", a);
+
+	struct bstr p1 = BSTR_K("5060");
+	uint16_t p;
+
+	ok = bstr_to_port(&p1, &p);
+	dp_test_fail_unless(ok, "bstr_to_port failed");
+	dp_test_fail_unless(p == 5060, "Exp 5060, got %u", p);
+
+} DP_END_TEST;
+

@@ -381,4 +381,10 @@ bool bstr_trim(struct bstr *bs);
 bool bstr_lws_ltrim(struct bstr *bs);
 bool bstr_lws_rtrim(struct bstr *bs);
 
+/* Get IP address from a string. Returns address in host byte order. */
+bool bstr_to_ipaddr(struct bstr const *bs, uint32_t *addr);
+
+/* Get port number from a string. Returns port in host byte order. */
+bool bstr_to_port(struct bstr const *bs, uint16_t *port);
+
 #endif /* BSTR_H */

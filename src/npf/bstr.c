@@ -633,3 +633,31 @@ bool bstr_lws_rtrim(struct bstr *bs)
 
 	return true;
 }
+
+/* The IPv4 address written to 'addr' is in host byte order */
+bool bstr_to_ipaddr(struct bstr const *bs, uint32_t *addr)
+{
+	uint8_t ip[4];
+	int nitems;
+
+	if (bs->len < 7 || bs->len > 15)
+		return false;
+
+	nitems = sscanf((const char *)bs->buf, "%hhu.%hhu.%hhu.%hhu",
+			&ip[3], &ip[2], &ip[1], &ip[0]);
+
+	if (nitems != 4)
+		return false;
+
+	*addr = ip[3] << 24 | ip[2] << 16 | ip[1] << 8 | ip[0];
+	return true;
+}
+
+/* The port number written to  'port' is in host byte order */
+bool bstr_to_port(struct bstr const *bs, uint16_t *port)
+{
+	if (bs->len < 1 || bs->len > 5)
+		return false;
+
+	return sscanf((const char *)bs->buf, "%hu", port) == 1;
+}
