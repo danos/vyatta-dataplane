@@ -1,3 +1,9 @@
+vyatta-dataplane (3.13.46) unstable; urgency=medium
+
+  * Preserve dataplane ARP entry if h/w knows it's reachable
+
+ -- Thomas Kiely <thomas.kiely@att.com>  Thu, 23 Sep 2021 08:18:27 +0100
+
 vyatta-dataplane (3.13.45) unstable; urgency=medium
 
   [ Paul Aitken ]
