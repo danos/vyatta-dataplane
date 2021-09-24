@@ -1,3 +1,47 @@
+vyatta-dataplane (3.14.21) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * sfp: Refactor conversion functions
+  * sfp-monitor: Add message to control monitoring
+  * sfp-monitor: Add message definition for SFP status
+  * Add walker for ethernet interfaces
+  * sfp: Tidy up
+  * sfp-monitor: Include module and EEPROM information in state
+  * sfp-monitor: Introduce flag to include static info in output
+  * sfp-monitor: Add support for show command
+  * sfp-monitor: split up retrieval and display functions
+  * sfp-monitor: Emit thresholds, warnings and alarms selectively
+  * sfp-monitor: Include channel number in QSFP output
+  * sfp-monitor: Emit optical parameters only for fibre SFPs
+
+  [ Dewi Morgan ]
+  * src: common nh for show route next-hop
+  * src: route support for nexthop summary
+  * netinet6: support for ipv6 nexthop count
+
+  [ Derek Fawcus ]
+  * bstr: Add description to the various functions
+
+  [ Ian Wilson ]
+  * bstr: Block bstr_split_x functions from operating on managed strings
+  * bstr: Static analysis warnings and errors in counted string routines
+  * bstr: Remove typedef for bstr_t from counted strings
+  * bstr: Add bstr_penultimate_eq to compare penultimate byte of a bstr
+  * cgn-alg-sip: Split SIP hdr from string using bstr utility
+  * cgnat-alg-sip: Parse SIP message start line
+  * bstr: Add functions to split before or after a sub-string
+  * cgnat-alg-sip: Parse SIP msg line to find URI host and port
+  * cgnat-alg-sip: Parse SIP msg line and translate SIP URI
+  * cgnat_sip_alg: Parse SIP message into an array of counted strings
+
+  [ Cian O'Sullivan ]
+  * Fix dereference after null check
+
+  [ Gavin Shearer ]
+  * Avoid delay in changing session timeout after a state change
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 24 Sep 2021 09:18:00 +0100
+
 vyatta-dataplane (3.14.20) unstable; urgency=medium
 
   [ ck407g ]
