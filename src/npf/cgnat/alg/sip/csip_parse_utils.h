@@ -29,4 +29,7 @@ bool csip_get_hline(struct bstr const *parent, struct bstr *headp, struct bstr *
 bool csip_get_line(struct bstr const *parent, struct bstr *headp, struct bstr *tailp);
 bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines);
 
+bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
+		   struct bstr *port, struct bstr *post);
+
 #endif /* CSIP_PARSE_UTILS_H */
