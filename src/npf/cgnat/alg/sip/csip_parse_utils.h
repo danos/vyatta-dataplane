@@ -32,4 +32,8 @@ bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines);
 bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
 		   struct bstr *port, struct bstr *post);
 
+bool csip_find_and_translate_uri(struct bstr const *line, struct bstr *new,
+				 struct bstr const *oaddr, struct bstr const *oport,
+				 struct bstr const *taddr, struct bstr const *tport);
+
 #endif /* CSIP_PARSE_UTILS_H */

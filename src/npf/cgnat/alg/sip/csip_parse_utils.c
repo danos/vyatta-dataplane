@@ -332,3 +332,73 @@ bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
 
 	return true;
 }
+
+/*
+ * Locate the SIP URI in the message line and translate address and/or port if
+ * either match the original address and port.
+ *
+ * If no translation is required, then the line is simply copied to the new
+ * buffer.
+ *
+ * If an error is encountered then we will try as far as possible and
+ * continue, but using the original line.  Debugging SIP ALG problems requires
+ * the before and after messages to be traced by application such as
+ * Wireshark.
+ */
+bool csip_find_and_translate_uri(struct bstr const *line, struct bstr *new,
+				 struct bstr const *oaddr, struct bstr const *oport,
+				 struct bstr const *taddr, struct bstr const *tport)
+{
+	struct bstr pre = BSTR_INIT;	/* string before the host */
+	struct bstr host = BSTR_INIT;	/* host string */
+	struct bstr port = BSTR_INIT;	/* port string */
+	struct bstr post = BSTR_INIT;	/* string after the host/port */
+	bool ok;
+	struct bstr tmp = *new;
+
+	ok = csip_find_uri(line, &pre, &host, &port, &post);
+	if (!ok)
+		/* copy untranslated line to new message */
+		return bstr_addbuf(new, line);
+
+	if (pre.len > 0) {
+		ok = bstr_addbuf(new, &pre);
+		if (!ok)
+			goto error;
+	}
+
+	if (host.len > 0) {
+		if (bstr_eq(&host, oaddr))
+			ok = bstr_addbuf(new, taddr);
+		else
+			ok = bstr_addbuf(new, &host);
+
+		if (!ok)
+			goto error;
+	}
+
+	if (port.len > 0) {
+		if (!bstr_addch(new, ':'))
+			goto error;
+
+		if (bstr_eq(&port, oport))
+			ok = bstr_addbuf(new, tport);
+		else
+			ok = bstr_addbuf(new, &port);
+
+		if (!ok)
+			goto error;
+	}
+
+	if (post.len > 0) {
+		ok = bstr_addbuf(new, &post);
+		if (!ok)
+			goto error;
+	}
+
+	return true;
+
+error:
+	*new = tmp;
+	return bstr_addbuf(new, line);
+}
