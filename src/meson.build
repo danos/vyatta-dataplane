@@ -217,6 +217,7 @@ npf_sources = files(
         'npf/cgnat/alg/sip/csip_parse_sip.c',
         'npf/cgnat/alg/sip/csip_parse_utils.c',
         'npf/cgnat/alg/sip/csip_request.c',
+        'npf/cgnat/alg/sip/csip_response.c',
         'npf/config/gpc_acl_cli.c',
         'npf/config/gpc_cntr.c',
         'npf/config/gpc_db.c',
