@@ -1,3 +1,17 @@
+vyatta-dataplane (3.14.22) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Preserve dataplane ARP entry if h/w knows it's reachable
+  * 3.13.46
+
+  [ Cian O'Sullivan ]
+  * sfp-permit-list: Enforcement rework
+
+  [ Srinivas Narayan ]
+  * 3.13.47
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 24 Sep 2021 09:45:58 +0100
+
 vyatta-dataplane (3.14.21) unstable; urgency=medium
 
   [ Srinivas Narayan ]
