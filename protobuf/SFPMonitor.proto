@@ -51,9 +51,9 @@ message SfpPermitConfig {
 		DISABLE = 1;
 	}
 
-	enum Enforcement {
-		ENFORCE	= 0;
-		MONITOR = 1;
+	enum Mode {
+		MONITOR = 0;
+		ENFORCE	= 1;
 	}
 
 	message SFP {
@@ -73,7 +73,9 @@ message SfpPermitConfig {
 
 		optional Logging logging = 2 [default = DISABLE];
 
-		optional Enforcement enforcement = 3 [default = MONITOR];
+		optional Mode mode = 3 [default = MONITOR];
+
+		optional uint32 effective_enforcement_time = 4;
 	}
 
 	message ListConfig {

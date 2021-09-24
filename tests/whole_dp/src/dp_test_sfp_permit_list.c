@@ -357,9 +357,11 @@ static void sfp_mismatch_action_send(bool enforcement, bool logging)
 	MismatchCfg.logging = logging ? SFP_PERMIT_CONFIG__LOGGING__ENABLE :
 		SFP_PERMIT_CONFIG__LOGGING__DISABLE;
 
-	MismatchCfg.has_enforcement = true;
-	MismatchCfg.enforcement = enforcement ? SFP_PERMIT_CONFIG__ENFORCEMENT__ENFORCE :
-		SFP_PERMIT_CONFIG__ENFORCEMENT__MONITOR;
+	MismatchCfg.has_mode = true;
+	MismatchCfg.mode = enforcement ? SFP_PERMIT_CONFIG__MODE__ENFORCE :
+		SFP_PERMIT_CONFIG__MODE__MONITOR;
+	MismatchCfg.has_effective_enforcement_time = true;
+	MismatchCfg.effective_enforcement_time = enforcement ? 1 : 0;
 
 	sfp_permit_list_send(&Cfg);
 	sleep(5);

@@ -337,7 +337,6 @@ libvyatta-dataplane-proto-c.so.1 libvyatta-dataplane-proto-c1 #MINVER#
  session_state__descriptor@Base 3.13.6
  sfp_permit_config__action__descriptor@Base 3.13.34
  sfp_permit_config__descriptor@Base 3.13.34
- sfp_permit_config__enforcement__descriptor@Base 3.13.34
  sfp_permit_config__free_unpacked@Base 3.13.34
  sfp_permit_config__get_packed_size@Base 3.13.34
  sfp_permit_config__init@Base 3.13.34
@@ -346,6 +345,7 @@ libvyatta-dataplane-proto-c.so.1 libvyatta-dataplane-proto-c1 #MINVER#
  sfp_permit_config__logging__descriptor@Base 3.13.34
  sfp_permit_config__mis_match_config__descriptor@Base 3.13.34
  sfp_permit_config__mis_match_config__init@Base 3.13.34
+ sfp_permit_config__mode__descriptor@Base 3.13.45
  sfp_permit_config__pack@Base 3.13.34
  sfp_permit_config__pack_to_buffer@Base 3.13.34
  sfp_permit_config__sfp__descriptor@Base 3.13.34
