@@ -84,6 +84,7 @@ struct _nv_ext {
 
 /* Offset in the EEPROM data for all diag data */
 #define	SFF_8472_DIAG_OFFSET 256
+#define	SFF_8436_DIAG_OFFSET 0
 
 static const char *find_value(struct _nv *x, int value);
 static const char *find_zero_bit(struct _nv *x, int value, int sz);
@@ -457,6 +458,14 @@ struct slope_off {
 struct sfp_calibration_constants {
 	union ieee754_float rx_pwr[SFP_CALIB_CONST_RX_PWR_CNT];
 	struct slope_off    slope_offs[SFP_CALIB_CONST_MAX];
+};
+
+enum qsfp_aw_source {
+	CHANNEL_1 = 0,
+	CHANNEL_2 = 1,
+	CHANNEL_3 = 2,
+	CHANNEL_4 = 3,
+	MODULE = 5,
 };
 
 /*
@@ -1926,7 +1935,6 @@ print_sfp_warning_flags(const struct rte_dev_eeprom_info *eeprom_info,
 }
 
 static void
-
 convert_qsfp_aw_flags(json_writer_t *wr, struct _nv_ext *x,
 		  uint8_t flags)
 {
@@ -2315,9 +2323,152 @@ sfp_log_aw_status_change(struct ifnet *ifp, struct xcvr_info *xcvr_info)
 	sfp_process_aw_flag_change(ifp, xcvr_info, old_flags, new_flags, true);
 }
 
+static void qsfp_get_value(bool ifp_up __rte_unused,
+			   struct xcvr_info *xcvr_info __rte_unused,
+			   struct _nv_ext *x __rte_unused,
+			   char *val_str __rte_unused,
+			   size_t sz_val_str __rte_unused, int chan __rte_unused)
+{
+	val_str[0] = 0;
+}
+
+static void qsfp_get_thr_value(struct xcvr_info *xcvr_info __rte_unused,
+			       struct _nv_ext *x __rte_unused,
+			       char *val_str __rte_unused,
+			       size_t sz_val_str __rte_unused)
+{
+	val_str[0] = 0;
+}
+
+static void qsfp_process_aw_flag_change(struct ifnet *ifp, struct xcvr_info *xcvr_info,
+					uint8_t old_flags, uint8_t new_flags,
+					struct _nv_ext *x, enum qsfp_aw_source source)
+{
+	char val_str[20], thr_str[20], src_str[20] = "";
+	uint8_t flag;
+	for (; x->n != NULL; x++) {
+		flag = 1 << x->v;
+
+		if ((old_flags & flag) == (new_flags & flag))
+			continue;
+
+		if (source != MODULE)
+			snprintf(src_str, sizeof(src_str), "(channel %d)", source+1);
+
+		qsfp_get_value(ifp->if_flags & IFF_UP ? true : false, xcvr_info,
+				x, val_str, sizeof(val_str), source);
+		qsfp_get_thr_value(xcvr_info, x, thr_str, sizeof(thr_str));
+		RTE_LOG(ERR, SFP_MON,
+			"%s %s on %s%s. Current value = %s, %s threshold = %s\n",
+			x->l, ((new_flags & flag) ? "detected" : "cleared"),
+			ifp->if_name, src_str, val_str, x->l, thr_str);
+	}
+}
+
+static void
+qsfp_log_aw_status_change(struct ifnet *ifp, struct xcvr_info *xcvr_info)
+{
+#define SFF_8436_AW_FLAGS_LEN 7
+
+	uint8_t *old_aw_flags = xcvr_info->prev_dyn_data +
+		(SFF_8436_DIAG_OFFSET + SFF8436_TEMP_AW_OFFSET - xcvr_info->offset);
+	uint8_t *new_aw_flags = (uint8_t *)xcvr_info->eeprom_info.data +
+			SFF_8436_DIAG_OFFSET + SFF8436_TEMP_AW_OFFSET;
+	uint16_t offset;
+
+	DP_DEBUG(SFP_MON, DEBUG, DATAPLANE,
+		 "%s: old_warn_flags (0x) = %x %x %x %x %x %x %x, "
+		 "new_warn_flags (0x) = %x %x %x %x %x %x %x\n",
+		 ifp->if_name, old_aw_flags[0], old_aw_flags[1], old_aw_flags[2],
+		 old_aw_flags[3], old_aw_flags[4], old_aw_flags[5], old_aw_flags[6],
+		 new_aw_flags[0], new_aw_flags[1], new_aw_flags[2], new_aw_flags[3],
+		 new_aw_flags[4], new_aw_flags[5], new_aw_flags[6]);
+
+	if (!memcmp(old_aw_flags, new_aw_flags, SFF_8436_AW_FLAGS_LEN))
+		return;
+
+	/* Temperature warnings and alarms */
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *old_aw_flags, *new_aw_flags,
+			temp_alarm_warn_flags, MODULE);
+
+	/* Voltage warnings and alarms */
+	offset = SFF8436_VCC_AW_OFFSET - SFF8436_TEMP_AW_OFFSET;
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), voltage_alarm_warn_flags,
+			MODULE);
+
+	/* Rx power channel 1 warnings and alarms */
+	offset = SFF8436_RX_PWR_12_AW_OFFSET - SFF8436_TEMP_AW_OFFSET;
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), rx_pwr_aw_chan_upper_flags,
+			CHANNEL_1);
+
+	/* Rx power channel 2 warnings and alarms */
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), rx_pwr_aw_chan_lower_flags,
+			CHANNEL_2);
+
+	/* Rx power channel 3 warnings and alarms */
+	offset = SFF8436_RX_PWR_34_AW_OFFSET - SFF8436_TEMP_AW_OFFSET;
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), rx_pwr_aw_chan_upper_flags,
+			CHANNEL_3);
+
+	/* Rx power channel 4 warnings and alarms */
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), rx_pwr_aw_chan_lower_flags,
+			CHANNEL_4);
+
+	/* Laser Tx Bias power channel 1 warnings and alarms */
+	offset = SFF8436_TX_BIAS_12_AW_OFFSET - SFF8436_TEMP_AW_OFFSET;
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), tx_bias_aw_chan_upper_flags,
+			CHANNEL_1);
+
+	/* Laser Tx Bias channel 2 warnings and alarms */
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), tx_bias_aw_chan_lower_flags,
+			CHANNEL_2);
+
+	/* Laser Tx Bias channel 3 warnings and alarms */
+	offset = SFF8436_TX_BIAS_34_AW_OFFSET - SFF8436_TEMP_AW_OFFSET;
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), tx_bias_aw_chan_upper_flags,
+			CHANNEL_3);
+
+	/* Laser Tx Bias channel 4 warnings and alarms */
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), tx_bias_aw_chan_lower_flags,
+			CHANNEL_4);
+
+	/* Laser Tx Power channel 1 warnings and alarms */
+	offset = SFF8436_TX_PWR_12_AW_OFFSET - SFF8436_TEMP_AW_OFFSET;
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), tx_pwr_aw_chan_upper_flags,
+			CHANNEL_1);
+
+	/* Laser Tx Power channel 2 warnings and alarms */
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), tx_pwr_aw_chan_lower_flags,
+			CHANNEL_2);
+
+	/* Laser Tx Power channel 3 warnings and alarms */
+	offset = SFF8436_TX_PWR_34_AW_OFFSET - SFF8436_TEMP_AW_OFFSET;
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), tx_pwr_aw_chan_upper_flags,
+			CHANNEL_3);
+
+	/* Laser Tx Power channel 4 warnings and alarms */
+	qsfp_process_aw_flag_change(ifp, xcvr_info, *(old_aw_flags+offset),
+			*(new_aw_flags+offset), tx_pwr_aw_chan_lower_flags,
+			CHANNEL_4);
+}
+
 static void
 sfp_qsfp_log_aw_status_change(struct ifnet *ifp, struct xcvr_info *xcvr_info)
 {
+	uint8_t dev_tech = 0;
+
 	DP_DEBUG(SFP_MON, DEBUG, DATAPLANE,
 		 "Logging SFP status change for %s, module_type = %d, offset = %d\n",
 		 ifp->if_name, xcvr_info->module_info.type, xcvr_info->offset);
@@ -2327,6 +2478,12 @@ sfp_qsfp_log_aw_status_change(struct ifnet *ifp, struct xcvr_info *xcvr_info)
 		if (xcvr_info->offset < SFF_8472_DIAG_OFFSET)
 			return;
 		sfp_log_aw_status_change(ifp, xcvr_info);
+		break;
+
+	case RTE_ETH_MODULE_SFF_8436:
+		get_qsfp_device_tech(&xcvr_info->eeprom_info, &dev_tech);
+		if (dev_tech < QSFP_DEV_TECH_COPPER_MIN)
+			qsfp_log_aw_status_change(ifp, xcvr_info);
 		break;
 	}
 }
