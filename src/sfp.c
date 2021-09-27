@@ -336,70 +336,68 @@ static struct _nv_ext aw_flags[] = {
 	{ 0x00, NULL, NULL }
 };
 
-static struct _nv rx_pwr_aw_chan_upper_flags[] = {
-	{ 0x4, "rx_power_low_warn"  },
-	{ 0x5, "rx_power_high_warn" },
-	{ 0x6, "rx_power_low_alarm" },
-	{ 0x7, "rx_power_high_alarm" },
-	{ 0x8, NULL  }
+static struct _nv_ext rx_pwr_aw_chan_upper_flags[] = {
+	{ 0x4, "rx_power_low_warn",   "Rx power low warning"},
+	{ 0x5, "rx_power_high_warn",  "Rx power high warning"},
+	{ 0x6, "rx_power_low_alarm",  "Rx power low alarm"},
+	{ 0x7, "rx_power_high_alarm", "Rx power high alarm"},
+	{ 0x8, NULL, NULL }
 };
 
-static struct _nv rx_pwr_aw_chan_lower_flags[] = {
-	{ 0x0, "rx_power_low_warn"  },
-	{ 0x1, "rx_power_high_warn" },
-	{ 0x2, "rx_power_low_alarm" },
-	{ 0x3, "rx_power_high_alarm" },
-	{ 0x8, NULL  }
+static struct _nv_ext rx_pwr_aw_chan_lower_flags[] = {
+	{ 0x0, "rx_power_low_warn",   "Rx power low warning"},
+	{ 0x1, "rx_power_high_warn",  "Rx power high warning"},
+	{ 0x2, "rx_power_low_alarm",  "Rx power low alarm"},
+	{ 0x3, "rx_power_high_alarm", "Rx power high alarm"},
+	{ 0x8, NULL, NULL }
 };
 
-static struct _nv tx_pwr_aw_chan_upper_flags[] = {
-	{ 0x4, "tx_power_low_warn"  },
-	{ 0x5, "tx_power_high_warn" },
-	{ 0x6, "tx_power_low_alarm" },
-	{ 0x7, "tx_power_high_alarm" },
-	{ 0x8, NULL  }
+static struct _nv_ext tx_pwr_aw_chan_upper_flags[] = {
+	{ 0x4, "tx_power_low_warn",   "Tx power low warning"},
+	{ 0x5, "tx_power_high_warn",  "Tx power high warning"},
+	{ 0x6, "tx_power_low_alarm",  "Tx power low alarm"},
+	{ 0x7, "tx_power_high_alarm", "Tx power high alarm"},
+	{ 0x8, NULL, NULL }
 };
 
-static struct _nv tx_pwr_aw_chan_lower_flags[] = {
-	{ 0x0, "tx_power_low_warn"  },
-	{ 0x1, "tx_power_high_warn" },
-	{ 0x2, "tx_power_low_alarm" },
-	{ 0x3, "tx_power_high_alarm" },
-	{ 0x8, NULL  }
+static struct _nv_ext tx_pwr_aw_chan_lower_flags[] = {
+	{ 0x0, "tx_power_low_warn",   "Tx power low warning"},
+	{ 0x1, "tx_power_high_warn",  "Tx power high warning"},
+	{ 0x2, "tx_power_low_alarm",  "Tx power low alarm"},
+	{ 0x3, "tx_power_high_alarm", "Tx power high alarm"},
+	{ 0x8, NULL, NULL }
 };
 
-
-static struct _nv tx_bias_aw_chan_upper_flags[] = {
-	{ 0x4, "tx_bias_low_warn"  },
-	{ 0x5, "tx_bias_high_warn" },
-	{ 0x6, "tx_bias_low_alarm" },
-	{ 0x7, "tx_bias_high_alarm" },
-	{ 0x8, NULL  }
+static struct _nv_ext tx_bias_aw_chan_upper_flags[] = {
+	{ 0x4, "tx_bias_low_warn",   "Laser bias low warning"},
+	{ 0x5, "tx_bias_high_warn",  "Laser bias high warning"},
+	{ 0x6, "tx_bias_low_alarm",  "Laser bias low alarm"},
+	{ 0x7, "tx_bias_high_alarm", "Laser bias high alarm"},
+	{ 0x8, NULL, NULL }
 };
 
-static struct _nv tx_bias_aw_chan_lower_flags[] = {
-	{ 0x0, "tx_bias_low_warn"  },
-	{ 0x1, "tx_bias_high_warn" },
-	{ 0x2, "tx_bias_low_alarm" },
-	{ 0x3, "tx_bias_high_alarm" },
-	{ 0x8, NULL  }
+static struct _nv_ext tx_bias_aw_chan_lower_flags[] = {
+	{ 0x0, "tx_bias_low_warn",   "Laser bias low warning"},
+	{ 0x1, "tx_bias_high_warn",  "Laser bias high warning"},
+	{ 0x2, "tx_bias_low_alarm",  "Laser bias low alarm"},
+	{ 0x3, "tx_bias_high_alarm", "Laser bias high alarm"},
+	{ 0x8, NULL, NULL }
 };
 
-
-static struct _nv temp_alarm_warn_flags[] = {
-	{ 0x7, "temp_high_alarm" },
-	{ 0x6, "temp_low_alarm" },
-	{ 0x5, "temp_high_warn" },
-	{ 0x4, "temp_low_warn"  },
-	{ 0x00,  NULL }
+static struct _nv_ext temp_alarm_warn_flags[] = {
+	{ 0x7, "temp_high_alarm", "Temperature high alarm"},
+	{ 0x6, "temp_low_alarm",  "Temperature low alarm"},
+	{ 0x5, "temp_high_warn",  "Temperature high warning"},
+	{ 0x4, "temp_low_warn",   "Temperature low warning"},
+	{ 0x00, NULL, NULL }
 };
 
-static struct _nv voltage_alarm_warn_flags[] = {
-	{ 0x7, "vcc_high_alarm" },
-	{ 0x6, "vcc_low_alarm" },
-	{ 0x5, "vcc_high_warn" },
-	{ 0x4, "vcc_low_warn"  },
-	{ 0x00,  NULL }
+static struct _nv_ext voltage_alarm_warn_flags[] = {
+	{ 0x7, "vcc_high_alarm", "Voltage high alarm"},
+	{ 0x6, "vcc_low_alarm",  "Voltage low alarm"},
+	{ 0x5, "vcc_high_warn",  "Voltage high warning"},
+	{ 0x4, "vcc_low_warn",   "Voltage low warning"},
+	{ 0x00, NULL, NULL }
 };
 
 /* all values greater than or equal to 0xa
@@ -1928,7 +1926,8 @@ print_sfp_warning_flags(const struct rte_dev_eeprom_info *eeprom_info,
 }
 
 static void
-convert_qsfp_aw_flags(json_writer_t *wr, struct _nv  *x,
+
+convert_qsfp_aw_flags(json_writer_t *wr, struct _nv_ext *x,
 		  uint8_t flags)
 {
 
