@@ -56,7 +56,6 @@
 #include <event.h>
 #include <json_writer.h>
 #include <rte_dev_info.h>
-#include <transceiver.h>
 #include <ieee754.h>
 #include <transceiver.h>
 #include "protobuf.h"
@@ -85,6 +84,12 @@ struct _nv_ext {
 /* Offset in the EEPROM data for all diag data */
 #define	SFF_8472_DIAG_OFFSET 256
 #define	SFF_8436_DIAG_OFFSET 0
+
+/* Representation of when there is no power */
+#define POWER_MIN (-40)
+
+/* Length of SFP monitoring log strings */
+#define MON_STR_LEN 20
 
 static const char *find_value(struct _nv *x, int value);
 static const char *find_zero_bit(struct _nv *x, int value, int sz);
@@ -562,6 +567,12 @@ find_zero_bit(struct _nv *x, int value, int sz)
 	}
 
 	return NULL;
+}
+
+static inline double
+mW_to_dBm(double val)
+{
+	return val <= 0 ? POWER_MIN : 10 * log10(val);
 }
 
 static void
@@ -1144,7 +1155,7 @@ print_qsfp_vendor(const struct rte_dev_eeprom_info *eeprom_info,
 }
 
 /*
- * Converts internal templerature (SFF-8472, SFF-8436)
+ * Converts internal temperature (SFF-8472, SFF-8436)
  * 16-bit unsigned value to human-readable representation:
  *
  * Internally measured Module temperature are represented
@@ -1413,6 +1424,50 @@ print_qsfp_encoding(const struct rte_dev_eeprom_info *eeprom_info,
 
 static void
 get_sfp_calibration_constants(const struct rte_dev_eeprom_info *eeprom_info,
+			      struct sfp_calibration_constants *c_consts)
+{
+	uint16_t i, offset, cursor;
+	uint8_t xbuf[4];
+	union ieee754_float rx_pwr;
+
+	cursor = SFF_8472_RX_POWER4;
+	for (i = 0; i < SFP_CALIB_CONST_RX_PWR_CNT; i++) {
+		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+				cursor, SFP_CALIB_CONST_RX_PWR_SIZE,
+				xbuf);
+
+		rx_pwr.ieee.negative = (xbuf[0] & 0x80) >> 7;
+		rx_pwr.ieee.exponent = (((xbuf[0] & 0x7f) << 1) |
+					((xbuf[1] & 0x80) >> 7));
+		rx_pwr.ieee.mantissa += (((xbuf[1] & 0x7f) << 16) |
+					 (xbuf[2] << 8) | xbuf[3]);
+
+		// Populate in reverse to conform to SFF-8472 calibration constants table
+		c_consts->rx_pwr[SFP_CALIB_CONST_MAX - i] = rx_pwr;
+		cursor += SFP_CALIB_CONST_RX_PWR_SIZE;
+	}
+
+	cursor = SFF_8472_TX_I_SLOPE;
+	for (i = 0; i < SFP_CALIB_CONST_MAX; i++) {
+		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+				cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
+				xbuf);
+
+		c_consts->slope_offs[i].slope =
+			(float)xbuf[0] + (float)xbuf[1]/256;
+		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
+
+		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+				cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
+				(uint8_t *)&offset);
+
+		c_consts->slope_offs[i].offset = ntohs(offset);
+		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
+	}
+}
+
+static void
+get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info,
 			      struct sfp_calibration_constants *c_consts,
 			      json_writer_t *wr)
 {
@@ -1440,6 +1495,7 @@ get_sfp_calibration_constants(const struct rte_dev_eeprom_info *eeprom_info,
 		rx_pwr.ieee.mantissa += (((xbuf[1] & 0x7f) << 16) |
 					 (xbuf[2] << 8) | xbuf[3]);
 
+		// Populate in reverse to conform to SFF-8472 calibration constants table
 		c_consts->rx_pwr[SFP_CALIB_CONST_MAX - i] = rx_pwr;
 		cursor += SFP_CALIB_CONST_RX_PWR_SIZE;
 	}
@@ -1455,8 +1511,8 @@ get_sfp_calibration_constants(const struct rte_dev_eeprom_info *eeprom_info,
 		snprintf(json_str, 40, "%02x %02x", xbuf[0], xbuf[1]);
 		jsonw_string_field(wr, json_field_name, json_str);
 
-		c_consts->slope_offs[i].slope = (float)xbuf[0] +
-			(float)xbuf[1]/256;
+		c_consts->slope_offs[i].slope =
+			(float)xbuf[0] + (float)xbuf[1]/256;
 		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
 
 		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
@@ -2128,8 +2184,7 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	if (do_diag != 0) {
 		if (diag_type & SFF_8472_DDM_EXTERNAL) {
 			c_const_p = &c_consts;
-			get_sfp_calibration_constants(eeprom_info, c_const_p,
-						      wr);
+			get_sfp_calibration_constants_json(eeprom_info, c_const_p, wr);
 			print_sfp_calibration_constants(c_const_p, wr);
 		} else
 			c_const_p = NULL;
@@ -2251,36 +2306,209 @@ sfp_save_eeprom_diag_status(struct xcvr_info *xcvr_info, uint16_t offset, uint8_
 	memcpy(xcvr_info->prev_dyn_data, eeprom_info->data + offset, len);
 }
 
-static void sfp_get_value(struct xcvr_info *xcvr_info __rte_unused,
-			  enum SFF_8472_AW_FLAG flag __rte_unused,
-			  char *val_str)
+static void
+get_converted_string(enum SFF_8472_AW_FLAG flag, uint8_t *xbuf,
+		     struct sfp_calibration_constants *c_consts,
+		     char *str, int string_size, bool intf_up)
 {
-	val_str[0] = 0;
+	double converted;
+
+	switch (flag) {
+	case SFF_8472_AW_RX_PWR_HIGH:
+	case SFF_8472_AW_RX_PWR_LOW:
+		converted = __convert_sff_power(xbuf, true, c_consts);
+		if (!intf_up)
+			converted = POWER_MIN;
+		else
+			converted = mW_to_dBm(converted);
+		snprintf(str, string_size, "%0.4fdBm", converted);
+
+		break;
+
+	case SFF_8472_AW_TX_PWR_HIGH:
+	case SFF_8472_AW_TX_PWR_LOW:
+		converted = __convert_sff_power(xbuf, false, c_consts);
+		if (!intf_up)
+			converted = POWER_MIN;
+		else
+			converted = mW_to_dBm(converted);
+		snprintf(str, string_size, "%0.4fdBm", converted);
+
+		break;
+
+	case SFF_8472_AW_TEMP_HIGH:
+	case SFF_8472_AW_TEMP_LOW:
+		converted = __convert_sff_temp(xbuf, c_consts);
+		snprintf(str, string_size, "%0.4fC", converted);
+
+		break;
+
+	case SFF_8472_AW_VCC_HIGH:
+	case SFF_8472_AW_VCC_LOW:
+		converted = __convert_sff_voltage(xbuf, c_consts);
+		snprintf(str, string_size, "%0.4fV", converted/10000);
+
+		break;
+
+	case SFF_8472_AW_TX_BIAS_HIGH:
+	case SFF_8472_AW_TX_BIAS_LOW:
+		converted = __convert_sff_bias(xbuf, c_consts);
+		snprintf(str, string_size, "%0.4fmA", converted);
+
+		break;
+	}
 }
 
-static void sfp_get_thr_value(struct xcvr_info *xcvr_info __rte_unused,
-			      enum SFF_8472_AW_FLAG flag __rte_unused,
-			      bool alarm __rte_unused,
-			      char *thr_str)
+static void
+sfp_get_value(struct xcvr_info *xcvr_info,
+	      enum SFF_8472_AW_FLAG flag,
+	      char *val_str, int string_size,
+	      struct sfp_calibration_constants *c_consts,
+	      bool intf_up)
 {
-	thr_str[0] = 0;
+	uint8_t xbuf[2] = { 0 };
+
+	switch (flag) {
+	case SFF_8472_AW_RX_PWR_HIGH:
+	case SFF_8472_AW_RX_PWR_LOW:
+		if (get_eeprom_data(&xcvr_info->eeprom_info, SFF_8472_DIAG,
+				    SFF_8472_RX_POWER, 2, xbuf))
+			return;
+
+		break;
+
+	case SFF_8472_AW_TX_PWR_HIGH:
+	case SFF_8472_AW_TX_PWR_LOW:
+		if (get_eeprom_data(&xcvr_info->eeprom_info, SFF_8472_DIAG,
+				    SFF_8472_TX_POWER, 2, xbuf))
+			return;
+
+		break;
+
+	case SFF_8472_AW_TEMP_HIGH:
+	case SFF_8472_AW_TEMP_LOW:
+		if (get_eeprom_data(&xcvr_info->eeprom_info, SFF_8472_DIAG,
+				    SFF_8472_TEMP, 2, xbuf))
+			return;
+
+		break;
+
+	case SFF_8472_AW_VCC_HIGH:
+	case SFF_8472_AW_VCC_LOW:
+		if (get_eeprom_data(&xcvr_info->eeprom_info, SFF_8472_DIAG,
+				    SFF_8472_VCC, 2, xbuf))
+			return;
+
+		break;
+
+	case SFF_8472_AW_TX_BIAS_HIGH:
+	case SFF_8472_AW_TX_BIAS_LOW:
+		if (get_eeprom_data(&xcvr_info->eeprom_info, SFF_8472_DIAG,
+				    SFF_8472_TX_BIAS, 2, xbuf))
+			return;
+
+		break;
+
+	default:
+		snprintf(val_str, string_size, "%s", "");
+		return;
+	}
+
+	get_converted_string(flag, xbuf, c_consts, val_str, string_size, intf_up);
 }
 
-static void sfp_process_aw_flag_change(struct ifnet *ifp, struct xcvr_info *xcvr_info,
-				       uint16_t old_flags, uint16_t new_flags, bool alarm)
+static int
+sfp_get_aw_thr_flag(enum SFF_8472_AW_FLAG flag, bool alarm)
+{
+	switch (flag) {
+	case SFF_8472_AW_RX_PWR_HIGH:
+		return alarm ? SFF_8472_RX_POWER_HIGH_ALM :
+			       SFF_8472_RX_POWER_HIGH_WARN;
+
+	case SFF_8472_AW_RX_PWR_LOW:
+		return alarm ? SFF_8472_RX_POWER_LOW_ALM :
+			       SFF_8472_RX_POWER_LOW_WARN;
+
+	case SFF_8472_AW_TX_PWR_HIGH:
+		return alarm ? SFF_8472_TX_POWER_HIGH_ALM :
+			       SFF_8472_TX_POWER_HIGH_WARN;
+
+	case SFF_8472_AW_TX_PWR_LOW:
+		return alarm ? SFF_8472_TX_POWER_LOW_ALM :
+			       SFF_8472_TX_POWER_LOW_WARN;
+
+	case SFF_8472_AW_TEMP_HIGH:
+		return alarm ? SFF_8472_TEMP_HIGH_ALM :
+			       SFF_8472_TEMP_HIGH_WARN;
+
+	case SFF_8472_AW_TEMP_LOW:
+		return alarm ? SFF_8472_TEMP_LOW_ALM :
+			       SFF_8472_TEMP_LOW_WARN;
+
+	case SFF_8472_AW_VCC_HIGH:
+		return alarm ? SFF_8472_VOLTAGE_HIGH_ALM :
+			       SFF_8472_VOLTAGE_HIGH_WARN;
+
+	case SFF_8472_AW_VCC_LOW:
+		return alarm ? SFF_8472_VOLTAGE_LOW_ALM :
+			       SFF_8472_VOLTAGE_LOW_WARN;
+
+	case SFF_8472_AW_TX_BIAS_HIGH:
+		return alarm ? SFF_8472_BIAS_HIGH_ALM :
+			       SFF_8472_BIAS_HIGH_WARN;
+
+	case SFF_8472_AW_TX_BIAS_LOW:
+		return alarm ? SFF_8472_BIAS_LOW_ALM :
+			       SFF_8472_BIAS_LOW_WARN;
+	}
+	return -1;
+}
+
+static void
+sfp_get_thr_value(struct xcvr_info *xcvr_info,
+		  enum SFF_8472_AW_FLAG flag,
+		  bool alarm,
+		  char *thr_str, int string_size,
+		  struct sfp_calibration_constants *c_consts,
+		  bool intf_up)
+{
+	uint8_t xbuf[2] = { 0 };
+
+	if (get_eeprom_data(&xcvr_info->eeprom_info, SFF_8472_DIAG,
+			    sfp_get_aw_thr_flag(flag, alarm), 2, xbuf))
+		return;
+
+	get_converted_string(flag, xbuf, c_consts, thr_str, string_size, intf_up);
+}
+
+static void
+sfp_process_aw_flag_change(struct ifnet *ifp, struct xcvr_info *xcvr_info,
+			   uint16_t old_flags, uint16_t new_flags, bool alarm)
 {
 	struct _nv_ext *x;
-	char val_str[20], thr_str[20];
+	char val_str[MON_STR_LEN], thr_str[MON_STR_LEN];
 	uint16_t flag;
+	bool intf_up;
 	char *aw_str = (alarm ? "alarm" : "warning");
+	struct sfp_calibration_constants c_consts, *c_const_p;
+
+	if (SFF_8472_DDM_EXTERNAL) {
+		c_const_p = &c_consts;
+		get_sfp_calibration_constants(&xcvr_info->eeprom_info, c_const_p);
+	} else
+		c_const_p = NULL;
 
 	for (x = aw_flags; x->n != NULL; x++) {
 		flag = 1 << x->v;
 		if ((old_flags & flag) == (new_flags & flag))
 			continue;
 
-		sfp_get_value(xcvr_info, x->v, val_str);
-		sfp_get_thr_value(xcvr_info, x->v, alarm, thr_str);
+		intf_up = (ifp->if_flags & IFF_UP) ? true : false;
+		sfp_get_value(xcvr_info, x->v, val_str, sizeof(val_str),
+			      c_const_p, intf_up);
+		sfp_get_thr_value(xcvr_info, x->v, alarm, thr_str,
+				  sizeof(thr_str), c_const_p, intf_up);
+
 		RTE_LOG(ERR, SFP_MON,
 			"%s %s %s on %s. Current value = %s, %s %s threshold = %s\n",
 			x->l, aw_str, ((new_flags & flag) ? "detected" : "cleared"),
@@ -2348,8 +2576,6 @@ qsfp_get_power(struct xcvr_info *xcvr_info, uint16_t offset,
 	       uint8_t *xbuf, size_t sz_xbuf, char **unit,
 	       bool rx, bool set_zero)
 {
-#define POWER_MIN (-40)
-
 	double val;
 
 	*unit = "dBm";
@@ -2361,11 +2587,7 @@ qsfp_get_power(struct xcvr_info *xcvr_info, uint16_t offset,
 			offset, sz_xbuf, xbuf);
 	val = __convert_sff_power(xbuf, rx, NULL);
 
-	if (val <= 0)
-		return POWER_MIN;
-
-	val = 10 * log10(val);
-	return val;
+	return mW_to_dBm(val);
 }
 
 static double
@@ -2424,9 +2646,9 @@ static void qsfp_get_value(bool intf_up, struct xcvr_info *xcvr_info,
 	}
 
 	if (strcmp(x->n, "rx_power_low_warn") == 0 ||
-		strcmp(x->n, "rx_power_high_warn") == 0 ||
-		strcmp(x->n, "rx_power_low_alarm") == 0 ||
-		strcmp(x->n, "rx_power_high_alarm") == 0) {
+	    strcmp(x->n, "rx_power_high_warn") == 0 ||
+	    strcmp(x->n, "rx_power_low_alarm") == 0 ||
+	    strcmp(x->n, "rx_power_high_alarm") == 0) {
 		d = qsfp_get_power(xcvr_info, SFF_8436_RX_CH1_MSB + (chan * 2),
 				xbuf, sizeof(xbuf), &unit, true, !intf_up);
 		goto end;
@@ -2582,7 +2804,7 @@ static void qsfp_process_aw_flag_change(struct ifnet *ifp, struct xcvr_info *xcv
 					uint8_t old_flags, uint8_t new_flags,
 					struct _nv_ext *x, enum qsfp_aw_source source)
 {
-	char val_str[20], thr_str[20], src_str[20] = "";
+	char val_str[MON_STR_LEN], thr_str[MON_STR_LEN], src_str[MON_STR_LEN] = "";
 	uint8_t flag;
 	for (; x->n != NULL; x++) {
 		flag = 1 << x->v;
@@ -2591,9 +2813,9 @@ static void qsfp_process_aw_flag_change(struct ifnet *ifp, struct xcvr_info *xcv
 			continue;
 
 		if (source != MODULE)
-			snprintf(src_str, sizeof(src_str), "(channel %d)", source+1);
+			snprintf(src_str, sizeof(src_str), " (channel %d)", source+1);
 
-		qsfp_get_value(ifp->if_flags & IFF_UP ? true : false, xcvr_info,
+		qsfp_get_value((ifp->if_flags & IFF_UP) ? true : false, xcvr_info,
 				x, val_str, sizeof(val_str), source);
 		qsfp_get_thr_value(xcvr_info, x, thr_str, sizeof(thr_str));
 		RTE_LOG(ERR, SFP_MON,
@@ -2713,8 +2935,6 @@ sfp_qsfp_log_aw_status_change(struct ifnet *ifp, struct xcvr_info *xcvr_info)
 
 	switch (xcvr_info->module_info.type) {
 	case RTE_ETH_MODULE_SFF_8472:
-		if (xcvr_info->offset < SFF_8472_DIAG_OFFSET)
-			return;
 		sfp_log_aw_status_change(ifp, xcvr_info);
 		break;
 
@@ -2781,14 +3001,14 @@ sfpd_process_notify_msg(SFPStatusList *sfp_msg)
 			 "EEPROM values (offset %d, length %d) being saved for %s\n",
 			 data->offset, data->length, ifp->if_name);
 
-		/* save previous values of EEPROM dynamic fields */
-		sfp_save_eeprom_diag_status(&sc->xcvr_info, data->offset, data->length);
-
 		/* store current values in EEPROM data block */
 		memcpy(eeprom_info->data + data->offset, data->data.data, data->length);
 
 		/* emit logs if necessary */
 		sfp_qsfp_log_aw_status_change(ifp, &sc->xcvr_info);
+
+		/* save previous values of EEPROM dynamic fields */
+		sfp_save_eeprom_diag_status(&sc->xcvr_info, data->offset, data->length);
 	}
 }
 
@@ -2879,10 +3099,6 @@ static int sfpd_notify_recv(void *arg)
 				sfpstatus_list__unpack(NULL, len, (uint8_t *) data);
 
 			sfpd_process_notify_msg(sfp_msg);
-
-			RTE_LOG(INFO, DATAPLANE,
-				"SFPd: SFPDSTATUS_NOTIFY data:%p len:%d\n",
-				data, len);
 		}
 
 		goto end;
