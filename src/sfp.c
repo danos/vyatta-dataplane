@@ -2323,21 +2323,259 @@ sfp_log_aw_status_change(struct ifnet *ifp, struct xcvr_info *xcvr_info)
 	sfp_process_aw_flag_change(ifp, xcvr_info, old_flags, new_flags, true);
 }
 
-static void qsfp_get_value(bool ifp_up __rte_unused,
-			   struct xcvr_info *xcvr_info __rte_unused,
-			   struct _nv_ext *x __rte_unused,
-			   char *val_str __rte_unused,
-			   size_t sz_val_str __rte_unused, int chan __rte_unused)
+static double
+qsfp_get_temp(struct xcvr_info *xcvr_info, uint16_t offset,
+	      uint8_t *xbuf, size_t sz_xbuf, char **unit)
 {
-	val_str[0] = 0;
+	*unit = "C";
+	get_eeprom_data(&xcvr_info->eeprom_info, SFF_8436_BASE,
+			offset, sz_xbuf, xbuf);
+	return __convert_sff_temp(xbuf, NULL);
 }
 
-static void qsfp_get_thr_value(struct xcvr_info *xcvr_info __rte_unused,
-			       struct _nv_ext *x __rte_unused,
-			       char *val_str __rte_unused,
-			       size_t sz_val_str __rte_unused)
+static double
+qsfp_get_voltage(struct xcvr_info *xcvr_info, uint16_t offset,
+		 uint8_t *xbuf, size_t sz_xbuf, char **unit)
 {
-	val_str[0] = 0;
+	*unit = "V";
+	get_eeprom_data(&xcvr_info->eeprom_info, SFF_8436_BASE,
+			offset, sz_xbuf, xbuf);
+	return __convert_sff_voltage(xbuf, NULL)/10000;
+}
+
+static double
+qsfp_get_power(struct xcvr_info *xcvr_info, uint16_t offset,
+	       uint8_t *xbuf, size_t sz_xbuf, char **unit,
+	       bool rx, bool set_zero)
+{
+#define POWER_MIN (-40)
+
+	double val;
+
+	*unit = "dBm";
+
+	if (set_zero)
+		return POWER_MIN;
+
+	get_eeprom_data(&xcvr_info->eeprom_info, SFF_8436_BASE,
+			offset, sz_xbuf, xbuf);
+	val = __convert_sff_power(xbuf, rx, NULL);
+
+	if (val <= 0)
+		return POWER_MIN;
+
+	val = 10 * log10(val);
+	return val;
+}
+
+static double
+qsfp_get_bias(struct xcvr_info *xcvr_info, uint16_t offset,
+	      uint8_t *xbuf, size_t sz_xbuf, char **unit)
+{
+	*unit = "mA";
+	get_eeprom_data(&xcvr_info->eeprom_info, SFF_8436_BASE,
+			offset, sz_xbuf, xbuf);
+	return __convert_sff_bias(xbuf, NULL);
+}
+
+static void qsfp_get_value(bool intf_up, struct xcvr_info *xcvr_info,
+			   struct _nv_ext *x, char *val_str, size_t sz_val_str,
+			   enum qsfp_aw_source chan)
+{
+	uint8_t xbuf[2] = {0};
+	double d = 0;
+	char *unit;
+
+	if (strcmp(x->n, "temp_low_warn") == 0 ||
+	    strcmp(x->n, "temp_high_warn") == 0 ||
+	    strcmp(x->n, "temp_low_alarm") == 0 ||
+	    strcmp(x->n, "temp_high_alarm") == 0) {
+		d = qsfp_get_temp(xcvr_info, SFF_8436_TEMP, xbuf,
+				  sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "vcc_low_warn") == 0 ||
+	    strcmp(x->n, "vcc_high_warn") == 0 ||
+	    strcmp(x->n, "vcc_low_alarm") == 0 ||
+	    strcmp(x->n, "vcc_high_alarm") == 0) {
+		d = qsfp_get_voltage(xcvr_info, SFF_8436_VCC, xbuf,
+				     sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "tx_bias_low_warn") == 0 ||
+	    strcmp(x->n, "tx_bias_high_warn") == 0 ||
+	    strcmp(x->n, "tx_bias_low_alarm") == 0 ||
+	    strcmp(x->n, "tx_bias_high_alarm") == 0) {
+		d = qsfp_get_bias(xcvr_info, SFF_8436_TX_BIAS_CH1_MSB + (chan * 2),
+				  xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "tx_power_low_warn") == 0 ||
+	    strcmp(x->n, "tx_power_high_warn") == 0 ||
+	    strcmp(x->n, "tx_power_low_alarm") == 0 ||
+	    strcmp(x->n, "tx_power_high_alarm") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8436_TX_CH1_MSB + (chan * 2),
+				   xbuf, sizeof(xbuf), &unit, false,
+				   !intf_up);
+		goto end;
+	}
+
+	if (strcmp(x->n, "rx_power_low_warn") == 0 ||
+		strcmp(x->n, "rx_power_high_warn") == 0 ||
+		strcmp(x->n, "rx_power_low_alarm") == 0 ||
+		strcmp(x->n, "rx_power_high_alarm") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8436_RX_CH1_MSB + (chan * 2),
+				xbuf, sizeof(xbuf), &unit, true, !intf_up);
+		goto end;
+	}
+
+	strncpy(val_str, "", sz_val_str);
+	return;
+
+end:
+	snprintf(val_str, sz_val_str, "%0.4f %s", d, unit);
+}
+
+static void qsfp_get_thr_value(struct xcvr_info *xcvr_info, struct _nv_ext *x,
+			       char *val_str, size_t sz_val_str)
+{
+	uint8_t xbuf[2] = {0};
+	double d;
+	char *unit;
+
+	/* Temperature thresholds */
+	if (strcmp(x->n, "temp_low_warn") == 0) {
+		d = qsfp_get_temp(xcvr_info, SFF_8636_TEMP_LOW_WARN,
+				  xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "temp_high_warn") == 0) {
+		d = qsfp_get_temp(xcvr_info, SFF_8636_TEMP_HIGH_WARN,
+				  xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "temp_low_alarm") == 0) {
+		d = qsfp_get_temp(xcvr_info, SFF_8636_TEMP_LOW_ALARM,
+				  xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "temp_high_alarm") == 0) {
+		d = qsfp_get_temp(xcvr_info, SFF_8636_TEMP_HIGH_ALARM,
+				  xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	/* Voltage thresholds */
+	if (strcmp(x->n, "vcc_low_warn") == 0) {
+		d = qsfp_get_voltage(xcvr_info, SFF_8636_VOLTAGE_LOW_WARN,
+				     xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "vcc_high_warn") == 0) {
+		d = qsfp_get_voltage(xcvr_info, SFF_8636_VOLTAGE_HIGH_WARN,
+				     xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "vcc_low_alarm") == 0) {
+		d = qsfp_get_voltage(xcvr_info, SFF_8636_VOLTAGE_LOW_ALARM,
+				     xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "vcc_high_alarm") == 0) {
+		d = qsfp_get_voltage(xcvr_info, SFF_8636_VOLTAGE_HIGH_ALARM,
+				     xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	/* Tx bias thresholds */
+	if (strcmp(x->n, "tx_bias_low_warn") == 0) {
+		d = qsfp_get_bias(xcvr_info, SFF_8636_TX_BIAS_LOW_WARN,
+				  xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "tx_bias_high_warn") == 0) {
+		d = qsfp_get_bias(xcvr_info, SFF_8636_TX_BIAS_HIGH_WARN,
+				  xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "tx_bias_low_alarm") == 0) {
+		d = qsfp_get_bias(xcvr_info, SFF_8636_TX_BIAS_LOW_ALARM,
+				  xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	if (strcmp(x->n, "tx_bias_high_alarm") == 0) {
+		d = qsfp_get_bias(xcvr_info, SFF_8636_TX_BIAS_HIGH_ALARM,
+				  xbuf, sizeof(xbuf), &unit);
+		goto end;
+	}
+
+	/* Tx power thresholds */
+	if (strcmp(x->n, "tx_power_low_warn") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8636_TX_POWER_LOW_WARN,
+				   xbuf, sizeof(xbuf), &unit, false, false);
+		goto end;
+	}
+
+	if (strcmp(x->n, "tx_power_high_warn") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8636_TX_POWER_HIGH_WARN,
+				   xbuf, sizeof(xbuf), &unit, false, false);
+		goto end;
+	}
+
+	if (strcmp(x->n, "tx_power_low_alarm") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8636_TX_POWER_LOW_ALARM,
+				   xbuf, sizeof(xbuf), &unit, false, false);
+		goto end;
+	}
+
+	if (strcmp(x->n, "tx_power_high_alarm") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8636_TX_POWER_HIGH_ALARM,
+				   xbuf, sizeof(xbuf), &unit, false, false);
+		goto end;
+	}
+
+	/* Rx power thresholds */
+	if (strcmp(x->n, "rx_power_low_warn") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8636_RX_POWER_LOW_WARN,
+				   xbuf, sizeof(xbuf), &unit, true, false);
+		goto end;
+	}
+
+	if (strcmp(x->n, "rx_power_high_warn") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8636_RX_POWER_HIGH_WARN,
+				   xbuf, sizeof(xbuf), &unit, true, false);
+		goto end;
+	}
+
+	if (strcmp(x->n, "rx_power_low_alarm") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8636_RX_POWER_LOW_ALARM,
+				   xbuf, sizeof(xbuf), &unit, true, false);
+		goto end;
+	}
+
+	if (strcmp(x->n, "rx_power_high_alarm") == 0) {
+		d = qsfp_get_power(xcvr_info, SFF_8636_RX_POWER_HIGH_ALARM,
+				   xbuf, sizeof(xbuf), &unit, true, false);
+		goto end;
+	}
+
+	strncpy(val_str, "", sz_val_str);
+	return;
+
+end:
+	snprintf(val_str, sz_val_str, "%0.4f %s", d, unit);
 }
 
 static void qsfp_process_aw_flag_change(struct ifnet *ifp, struct xcvr_info *xcvr_info,
