@@ -133,6 +133,8 @@ struct sfp_permit_config sfp_permit_cfg;
 
 struct cds_lfht *sfp_ports_tbl;
 
+static bool sfp_permit_mismatch_cfg_present;
+
 static inline uint32_t sfpd_record_hash(struct sfp_intf_record *rec)
 {
 	return rec->port;
@@ -489,6 +491,9 @@ sfp_permit_mismatch_cfg(const SfpPermitConfig__MisMatchConfig *mismatch)
 	DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
 		"SFP-PL: mismatch action %s\n",
 		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET ? "SET" : "DELETE");
+
+	sfp_permit_mismatch_cfg_present =
+		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET ? true : false;
 
 	if (mismatch->logging == SFP_PERMIT_CONFIG__LOGGING__ENABLE &&
 		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET)
@@ -1044,7 +1049,7 @@ sfp_jsonw_device(json_writer_t *wr, struct sfp_intf_record *sfp)
 	jsonw_end_object(wr);
 }
 
-static bool sfp_permit_config_present(void)
+static bool sfp_permit_config_absent(void)
 {
 	bool permit_list_empty;
 
@@ -1053,7 +1058,7 @@ static bool sfp_permit_config_present(void)
 	else
 		permit_list_empty = true;
 
-	return sfp_permit_enforcement_enabled() && permit_list_empty;
+	return !sfp_permit_mismatch_cfg_present && permit_list_empty;
 }
 
 static void sfp_permit_dump_devices(json_writer_t *wr)
@@ -1061,7 +1066,7 @@ static void sfp_permit_dump_devices(json_writer_t *wr)
 	struct cds_lfht_iter iter;
 	struct sfp_intf_record *sfp;
 
-	if (sfp_permit_config_present())
+	if (sfp_permit_config_absent())
 		return;
 
 	jsonw_name(wr, "sfp-permit-list-devices");
