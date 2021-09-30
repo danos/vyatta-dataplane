@@ -387,4 +387,7 @@ bool bstr_to_ipaddr(struct bstr const *bs, uint32_t *addr);
 /* Get port number from a string. Returns port in host byte order. */
 bool bstr_to_port(struct bstr const *bs, uint16_t *port);
 
+/* Simple bstr hash */
+uint32_t bstr_hash(struct bstr const *bs, uint32_t const initval);
+
 #endif /* BSTR_H */

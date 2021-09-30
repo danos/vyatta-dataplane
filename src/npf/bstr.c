@@ -661,3 +661,18 @@ bool bstr_to_port(struct bstr const *bs, uint16_t *port)
 
 	return sscanf((const char *)bs->buf, "%hu", port) == 1;
 }
+
+/* Simple bstr hash */
+uint32_t bstr_hash(struct bstr const *bs, uint32_t const initval)
+{
+	uint8_t const shift[4] = {0, 8, 16, 24};
+	uint32_t hash = initval;
+	int const len = bs->len;
+	uint8_t *p = bs->buf;
+	int i;
+
+	for (i = 0; i < len; i++, p++)
+		hash ^= (*p << shift[i & 0x3]);
+
+	return hash;
+}
