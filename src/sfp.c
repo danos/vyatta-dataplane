@@ -394,7 +394,9 @@ static struct _nv voltage_alarm_warn_flags[] = {
 	{ 0x00,  NULL }
 };
 
-/* all values above 0xa correspond to copper SFPs */
+/* all values greater than or equal to 0xa
+ * correspond to copper SFPs
+ */
 #define QSFP_DEV_TECH_COPPER_MIN 0xa
 
 static struct _nv sff_8636_dev_tech[] = {
@@ -1740,15 +1742,13 @@ print_qsfp_rx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 
 static void
 print_qsfp_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
-		      uint8_t dev_tech, json_writer_t *wr)
+		      json_writer_t *wr)
 {
 	print_qsfp_temp_thresholds(eeprom_info, wr);
 	print_qsfp_voltage_thresholds(eeprom_info, wr);
-	if (dev_tech < QSFP_DEV_TECH_COPPER_MIN) {
-		print_qsfp_bias_thresholds(eeprom_info, wr);
-		print_qsfp_tx_power_thresholds(eeprom_info, wr);
-		print_qsfp_rx_power_thresholds(eeprom_info, wr);
-	}
+	print_qsfp_bias_thresholds(eeprom_info, wr);
+	print_qsfp_tx_power_thresholds(eeprom_info, wr);
+	print_qsfp_rx_power_thresholds(eeprom_info, wr);
 }
 
 static void
@@ -2154,17 +2154,18 @@ print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 		print_qsfp_len(eeprom_info, SFF_8436_LEN_OM3, "smf_om3", wr);
 	}
 
-	/*
-	 * The standards in this area are not clear when the
-	 * additional measurements are present or not. Use a valid
-	 * temperature reading as an indicator for the presence of
-	 * voltage and TX/RX power measurements.
-	 */
-	print_qsfp_temp(eeprom_info, wr);
-	print_qsfp_voltage(eeprom_info, wr);
-
 	get_qsfp_device_tech(eeprom_info, &dev_tech);
 	if (dev_tech < QSFP_DEV_TECH_COPPER_MIN) {
+
+		/*
+		 * The standards in this area are not clear when the
+		 * additional measurements are present or not. Use a valid
+		 * temperature reading as an indicator for the presence of
+		 * voltage and TX/RX power measurements.
+		 */
+		print_qsfp_temp(eeprom_info, wr);
+		print_qsfp_voltage(eeprom_info, wr);
+
 		jsonw_name(wr, "measured_values");
 		jsonw_start_array(wr);
 		for (int i = 0; i < 4; i++) {
@@ -2177,12 +2178,13 @@ print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 		}
 		jsonw_end_array(wr);
 		print_qsfp_aw_flags(eeprom_info, wr);
-	}
-	print_qsfp_temp_aw_flags(eeprom_info, wr);
-	print_qsfp_voltage_aw_flags(eeprom_info, wr);
+		print_qsfp_temp_aw_flags(eeprom_info, wr);
+		print_qsfp_voltage_aw_flags(eeprom_info, wr);
 
-	if (include_static)
-		print_qsfp_thresholds(eeprom_info, dev_tech, wr);
+		if (include_static)
+			print_qsfp_thresholds(eeprom_info, wr);
+	}
+
 }
 
 
