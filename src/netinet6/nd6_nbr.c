@@ -1578,6 +1578,7 @@ nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 	       uint8_t ntf_flags)
 {
 	struct llentry *lle;
+	struct sockaddr_in6 sock;
 	uint8_t flags = 0;
 	uint16_t secs = 0;
 
@@ -1589,7 +1590,7 @@ nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 		  (state == NUD_STALE) ? "STALE" : "Other",
 		  state, ntf_flags);
 
-	if (!(state & (NUD_PERMANENT | NUD_REACHABLE | NUD_FAILED)))
+	if (!(state & (NUD_PERMANENT | NUD_STALE | NUD_REACHABLE | NUD_FAILED)))
 		return 0;
 
 	dp_rcu_read_lock();
@@ -1603,7 +1604,14 @@ nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 		secs = nd6_cfg.nd6_reachable_time;
 	}
 
-	if (state & NUD_FAILED) {
+	if (state & NUD_STALE) {
+		if (llentry_has_been_used(lle)) {
+			sock.sin6_family = AF_INET6;
+			memcpy(&sock.sin6_addr, addr, sizeof(struct in6_addr));
+			kernel_mark_neigh_reachable((struct sockaddr *)&sock,
+						    ifp->if_index);
+		}
+	} else if (state & NUD_FAILED) {
 		/*
 		 * Ignore fail notification unless entry exists.
 		 */
