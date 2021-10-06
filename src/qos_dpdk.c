@@ -279,13 +279,12 @@ int qos_dpdk_port(struct ifnet *ifp,
 	struct sched_info *qinfo = ifp->if_qos;
 
 	if (qinfo) {
-		qos_subport_npf_free(qinfo);
-		rcu_assign_pointer(ifp->if_qos, NULL);
-		call_rcu(&qinfo->rcu, qos_sched_free_rcu);
+		RTE_LOG(INFO, DATAPLANE, "Removing existing QoS SW config from %s\n",
+			ifp->if_name);
+		qos_dpdk_disable(ifp, qinfo);
 	}
 
-	qinfo = qos_sched_new(ifp, subports,
-			      pipes, profiles, overhead);
+	qinfo = qos_sched_new(ifp, subports, pipes, profiles, overhead);
 	if (!qinfo) {
 		DP_DEBUG(QOS_DP, ERR, DATAPLANE, "out of memory for qos\n");
 		return -ENOMEM;

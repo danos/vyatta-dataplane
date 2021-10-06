@@ -1307,43 +1307,30 @@ void qos_hw_free(__unused struct sched_info *qinfo)
 int qos_hw_port(struct ifnet *ifp, unsigned int subports, unsigned int pipes,
 		unsigned int profiles, unsigned int overhead)
 {
-	int retval = 0;
-
 	/* Drop old config if any */
 	struct sched_info *qinfo = ifp->if_qos;
 
-	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "hardware port, if-index: %u\n",
-		 ifp->if_index);
+	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE, "hardware port %s, if-index: %u\n",
+		 ifp->if_name, ifp->if_index);
 
-	if (qinfo)
-		qos_subport_npf_free(qinfo);
+	if (qinfo) {
+		RTE_LOG(INFO, DATAPLANE, "Removing existing QoS HW config from %s\n",
+			ifp->if_name);
+		qos_hw_disable(ifp, qinfo);
+	}
 
 	qinfo = qos_sched_new(ifp, subports, pipes, profiles, overhead);
 	if (!qinfo) {
-		ifp->if_qos = NULL;
 		DP_DEBUG(QOS_HW, ERR, DATAPLANE, "out of memory for qos\n");
-		return -1;
+		return -ENOMEM;
 	}
 
 	qinfo->n_subports = subports;
 	qinfo->n_pipes = pipes;
-
 	qinfo->dev_id = QOS_HW_ID;
-	ifp->if_qos = qinfo;
-	DP_DEBUG(QOS_HW, DEBUG, DATAPLANE,
-		 "ifp %s hardware forwarding enabled\n", ifp->if_name);
 
-	/*retval = fal_tastic();*/
-	if (retval) {
-		ifp->if_qos = NULL;
-		qos_subport_npf_free(qinfo);
-		qos_sched_free(qinfo);
-	}
-
-	/*
-	 * No hardware support
-	 */
-	return retval;
+	rcu_assign_pointer(ifp->if_qos, qinfo);
+	return 0;
 }
 
 int qos_hw_disable(struct ifnet *ifp, struct sched_info *qinfo)
@@ -1420,10 +1407,10 @@ int qos_hw_stop(struct ifnet *ifp, struct sched_info *qinfo)
 		}
 
 		/*
-		 * The link has gone down, clear the port's sched_group id.
+		 * The link has gone down, clear the port's id and sched_group id.
 		 */
-		qinfo->dev_info.fal.hw_port_sched_group =
-			FAL_QOS_NULL_OBJECT_ID;
+		qinfo->dev_info.fal.hw_port_id = FAL_QOS_NULL_OBJECT_ID;
+		qinfo->dev_info.fal.hw_port_sched_group = FAL_QOS_NULL_OBJECT_ID;
 	}
 	return 0;
 }
