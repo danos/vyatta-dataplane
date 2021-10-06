@@ -17,6 +17,7 @@
 #include "urcu.h"
 #include "compat.h"
 #include "fal_plugin.h"
+#include "transceiver.h"
 
 struct vhost_info;
 struct ifnet;
@@ -40,6 +41,9 @@ struct dpdk_eth_if_softc {
 	/* LAG configuration */
 	bool		     has_min_links;
 	uint16_t	     min_links;
+
+	/* transceiver information */
+	struct xcvr_info     xcvr_info;
 };
 
 void dpdk_eth_if_start_port(struct ifnet *ifp);
@@ -59,5 +63,14 @@ int dpdk_eth_link_get_nowait(uint16_t port_id, struct rte_eth_link *eth_link);
 struct ifnet *dpdk_eth_if_alloc(const char *if_name, unsigned int ifindex);
 struct ifnet *dpdk_eth_if_alloc_w_port(const char *if_name,
 				       unsigned int ifindex, portid_t portid);
+
+typedef bool (*dpdk_eth_if_walker_t)(struct ifnet *ifp, void *arg);
+
+void dpdk_eth_if_walk(dpdk_eth_if_walker_t walker, void *arg);
+
+int dpdk_eth_if_get_xcvr_info(struct ifnet *ifp);
+
+void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, bool include_static,
+				json_writer_t *wr);
 
 #endif /* DPDK_ETH_IF_H */

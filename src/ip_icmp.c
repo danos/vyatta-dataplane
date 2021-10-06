@@ -97,6 +97,9 @@ struct icmp_ext_obj_hdr {
 static bool ip_redirects = true;
 uint64_t icmpstats[ICMP_MIB_MAX];
 
+/* TOS value to be used when dataplane sending ICMP error packets. */
+static uint8_t icmp_error_tos = IPTOS_CLASS_CS6;
+
 /*
  * ICMP Rate limiting state for configurable types. Entry 0 holds
  * default values.
@@ -238,7 +241,8 @@ icmp_send(struct rte_mbuf *m, bool srced_forus)
  * ether address already contains the next-hop ether address.
  */
 static bool
-icmp_send_no_route(struct rte_mbuf *m, struct ifnet *out_ifp)
+icmp_send_no_route(struct rte_mbuf *m, struct ifnet *in_ifp,
+		struct ifnet *out_ifp)
 {
 	struct iphdr *ip;
 	int hlen;
@@ -263,7 +267,7 @@ icmp_send_no_route(struct rte_mbuf *m, struct ifnet *out_ifp)
 	nh_set_ifp(&singlehop_nh, out_ifp);
 	nh = &singlehop_nh;
 
-	if (dp_ip_l2_nh_output(NULL, m, nh, ETH_P_IP)) {
+	if (dp_ip_l2_nh_output(in_ifp, m, nh, ETH_P_IP)) {
 		IPSTAT_INC_IFP(out_ifp, IPSTATS_MIB_OUTPKTS);
 		return true;
 	}
@@ -583,7 +587,7 @@ icmp_do_error(struct rte_mbuf *n, int type, int code, uint32_t info,
 	 */
 	nip->ihl	= 5;
 	nip->version	= IPVERSION;
-	nip->tos	= IPTOS_PREC_INTERNETCONTROL;
+	nip->tos = icmp_error_tos;
 	nip->tot_len	= htons(mlen);
 	nip->frag_off	= 0;
 	nip->protocol	= IPPROTO_ICMP;
@@ -735,7 +739,7 @@ bool icmp_echo_reply_out(struct ifnet *rcvifp, struct rte_mbuf *n,
 
 	if (reflect)
 		/* Reflect reply directly back to sender */
-		rv = icmp_send_no_route(m, rcvifp);
+		rv = icmp_send_no_route(m, rcvifp, rcvifp);
 	else
 		icmp_send(m, false);
 
@@ -1089,4 +1093,12 @@ PB_REGISTER_CMD(icmp_ratelimit_cfg_cmd) = {
 	.handler = cmd_icmp_rate_limit_cfg_handler,
 };
 
+void icmp_error_tos_set(uint8_t tos)
+{
+	icmp_error_tos = tos;
+}
 
+uint8_t icmp_error_tos_get(void)
+{
+	return icmp_error_tos;
+}

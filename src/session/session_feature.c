@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -8,11 +8,11 @@
 
 #include <errno.h>
 #include <rte_atomic.h>
-#include <rte_jhash.h>
 #include <stdint.h>
 #include <stdlib.h>
 
 #include "compiler.h"
+#include "dp_xor_hash.h"
 #include "if_var.h"
 #include "session.h"
 #include "session_feature.h"
@@ -78,7 +78,7 @@ static ALWAYS_INLINE
 unsigned long sf_hash(struct session *s, uint32_t idx,
 		enum session_feature_type type)
 {
-	return rte_jhash_2words(s->se_id, idx, type);
+	return dp_xor_2words(s->se_id, idx, type);
 }
 
 /* For session matching */

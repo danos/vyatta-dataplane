@@ -1,3 +1,447 @@
+vyatta-dataplane (3.14.23) unstable; urgency=medium
+
+  [ Cian O'Sullivan ]
+  * Fix SFP permit state remaining after node deletion
+  * Handle SFP permit list mismatch configuration with missing messages
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 05 Oct 2021 21:42:10 +0100
+
+vyatta-dataplane (3.14.22) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * Preserve dataplane ARP entry if h/w knows it's reachable
+  * 3.13.46
+
+  [ Cian O'Sullivan ]
+  * sfp-permit-list: Enforcement rework
+
+  [ Srinivas Narayan ]
+  * 3.13.47
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 24 Sep 2021 09:45:58 +0100
+
+vyatta-dataplane (3.14.21) unstable; urgency=medium
+
+  [ Srinivas Narayan ]
+  * sfp: Refactor conversion functions
+  * sfp-monitor: Add message to control monitoring
+  * sfp-monitor: Add message definition for SFP status
+  * Add walker for ethernet interfaces
+  * sfp: Tidy up
+  * sfp-monitor: Include module and EEPROM information in state
+  * sfp-monitor: Introduce flag to include static info in output
+  * sfp-monitor: Add support for show command
+  * sfp-monitor: split up retrieval and display functions
+  * sfp-monitor: Emit thresholds, warnings and alarms selectively
+  * sfp-monitor: Include channel number in QSFP output
+  * sfp-monitor: Emit optical parameters only for fibre SFPs
+
+  [ Dewi Morgan ]
+  * src: common nh for show route next-hop
+  * src: route support for nexthop summary
+  * netinet6: support for ipv6 nexthop count
+
+  [ Derek Fawcus ]
+  * bstr: Add description to the various functions
+
+  [ Ian Wilson ]
+  * bstr: Block bstr_split_x functions from operating on managed strings
+  * bstr: Static analysis warnings and errors in counted string routines
+  * bstr: Remove typedef for bstr_t from counted strings
+  * bstr: Add bstr_penultimate_eq to compare penultimate byte of a bstr
+  * cgn-alg-sip: Split SIP hdr from string using bstr utility
+  * cgnat-alg-sip: Parse SIP message start line
+  * bstr: Add functions to split before or after a sub-string
+  * cgnat-alg-sip: Parse SIP msg line to find URI host and port
+  * cgnat-alg-sip: Parse SIP msg line and translate SIP URI
+  * cgnat_sip_alg: Parse SIP message into an array of counted strings
+
+  [ Cian O'Sullivan ]
+  * Fix dereference after null check
+
+  [ Gavin Shearer ]
+  * Avoid delay in changing session timeout after a state change
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 24 Sep 2021 09:18:00 +0100
+
+vyatta-dataplane (3.14.20) unstable; urgency=medium
+
+  [ ck407g ]
+  * Update IPV6 neighbour discovery state based on upper layer reachability
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 08 Sep 2021 08:51:27 +0100
+
+vyatta-dataplane (3.14.19) unstable; urgency=medium
+
+  [ Aidan Gallagher ]
+  * Place ARP frames on priority local queue
+
+  [ Gavin Shearer ]
+  * dpi: add API dp_dpi_not_available_app_id()
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 06 Sep 2021 11:13:50 +0100
+
+vyatta-dataplane (3.14.18) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * codechecks: correct algorithm
+
+  [ Srinivas Narayan ]
+  * 3.13.45
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 31 Aug 2021 17:25:04 +0100
+
+vyatta-dataplane (3.14.17) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * Add missing Copyright and SPDX-License-Identifier
+
+  [ Gaurav Gehani ]
+  * vyatta-dataplane: fix coverity errors
+
+  [ Gavin Shearer ]
+  * Fix issue of missing ndpi session info for NetFlow
+
+  [ Srinivas Narayan ]
+  * 3.13.44
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 31 Aug 2021 13:42:02 +0100
+
+vyatta-dataplane (3.14.16) unstable; urgency=medium
+
+  [ Derek Fawcus ]
+  * Import counted string routines.
+  * Silence clang-tidy.
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 31 Aug 2021 13:40:29 +0100
+
+vyatta-dataplane (3.14.15) unstable; urgency=medium
+
+  [ ck407g ]
+  * Remove activation delay
+
+  [ Paul Aitken ]
+  * make vyatta-dataplane.postinst executable
+  * codechecks: add file permissions checks
+  * codechecks: better formatting
+
+  [ Srinivas Narayan ]
+  * 3.13.43
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 26 Aug 2021 10:08:48 +0100
+
+vyatta-dataplane (3.14.14) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * ut: move dp_test_create_gre_ipv[46]_pak fns into dp_test_pktmbuf_lib.h
+  * ut: make two GRE test functions usable by other tests
+  * ut: rename fn gre_test_build_expected_ecn_pak()
+  * ut: move dp_test_gre.h into include/dp_test
+  * ut: move VTI interface creation fns into dp_test_lib_intf.h
+  * ut: move fns to add/delete addrs on i/f to dp_test_netlink_state.h
+  * ut: move dp_test_create_icmp_ipv4_pak() into dp_test_pktmbuf_lib.h
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 25 Aug 2021 14:53:19 +0100
+
+vyatta-dataplane (3.14.13) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * Fix idempotent headers
+  * Fix idempotent headers
+  * Fix idempotent headers
+  * Fix idempotent headers
+  * Jenkinsfile codechecks: don't abort
+
+  [ Srinivas Narayan ]
+  * 3.13.41
+
+  [ Charles (Chas) Williams ]
+  * pktmbuf: use nearest NUMA pool for control packets (Bugfix: VRVDR-55966)
+  * Detect accelerated netvsc DPDK ports (Bugfix: VRVDR-55967)
+
+  [ Daniel Gollub ]
+  * shadow: apply crypto on all egress slow-path traffic
+  * shadow: reduce the crypto lookup overhead
+  * crypto: adjust L3 packet length for IPv4 slow-path traffic
+
+  [ Srinivas Narayan ]
+  * 3.13.42
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 25 Aug 2021 09:56:18 +0100
+
+vyatta-dataplane (3.14.12) unstable; urgency=medium
+
+  [ Paul Aitken ]
+  * Add new codechecks script
+  * Add SPDX license to Jenkinsfile
+  * Jenkinsfile: use SRC_DIR
+  * Add codechecks to Jenkinsfile
+
+  [ ck407g ]
+  * Changes for activation delay to start after the boot sfpd scan
+
+  [ Thomas Kiely ]
+  * Revert "Jumbo MTU capability omitted"
+
+  [ Daniel Gollub ]
+  * config: introduce control_cpumask parsing
+  * dp_control_thread: introduce control-thread API
+  * npf-rte-acl: register acl-opt as control-thread
+
+  [ Srinivas Narayan ]
+  * 3.13.39
+
+  [ kalaivani vinothkumar ]
+  * coverity: SFP buffer not null terminated
+
+  [ Srinivas Narayan ]
+  * 3.13.40
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 20 Aug 2021 17:25:24 +0100
+
+vyatta-dataplane (3.14.11) unstable; urgency=medium
+
+  [ kalaivani vinothkumar ]
+  * Dataplane restart resets mac aging to default val
+
+  [ Cian O'Sullivan ]
+  * Store SFP enforcement delay value on boot
+
+  [ Paul Aitken ]
+  * Add prComment to Jenkinsfile
+  * Remove "OSC" stage name from Jenkinsfile
+
+  [ Srinivas Narayan ]
+  * 3.13.38
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 17 Aug 2021 19:38:55 +0100
+
+vyatta-dataplane (3.14.10) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * add function which notifies features then frees an mbuf
+  * replace calls to rte_pktmbuf_free() to calls to fn which notifies
+
+  [ Srinivas Narayan ]
+  * 3.13.36
+
+  [ Thomas Kiely ]
+  * Jumbo MTU capability omitted
+
+  [ ck407g ]
+  * Remove SFP state when nodes are deleted
+
+  [ Srinivas Narayan ]
+  * 3.13.37
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 12 Aug 2021 11:11:19 +0100
+
+vyatta-dataplane (3.14.9) unstable; urgency=medium
+
+  [ Daniel Gollub ]
+  * xfrm_client: don't negate the error-code twice
+
+  [ Mark Gillott ]
+  * twamp: propagate any UDP port registration error up to daemon
+    (Fixes: VRVDR-55838)
+  * twamp: increase the size of the UDP hash table (Fixes: VRVDR-55838)
+
+  [ Daniel Gollub ]
+  * debian: generate unversioned symbols/shlibs files
+  * debian: update protobuf symbols
+  * debian: ignore for disappearing symbols in Debian Bullseye builds
+
+  [ ck407g ]
+  * Changes to SFP disabling behaviour
+
+  [ Srinivas Narayan ]
+  * 3.13.35
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 06 Aug 2021 13:02:26 +0100
+
+vyatta-dataplane (3.14.8) unstable; urgency=medium
+
+  [ Cian O'Sullivan ]
+  * Output valid JSON in debug command
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Fri, 06 Aug 2021 13:01:11 +0100
+
+vyatta-dataplane (3.14.7) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * cgnat: Invalidate npf cache if a CGNAT translation occurs
+
+  [ Daniel Gollub ]
+  * npf-rte-acl: increase acl-opt frequency
+  * npf-rte-acl: remove unused ring lookup
+  * npf-rte-acl: adjust merge-trie parameters for high scale/TPS-rate
+  * npf-rte-acl: grow rule-pool faster when merging
+  * npf-rte-acl: introduce freeze threshold
+  * npf-rte-acl: prevent infinite merge attempts
+  * npf-rte-acl: document grow/max-rules/max-transaction defines
+  * crypto: prepare best_weight for more then 64k SAs
+  * crypto: avoid VFP lookups if there no bindings
+
+  [ Paul Aitken ]
+  * DPI: remove unused NPF_RPROC_ID_APP_GRP
+
+  [ Daniel Gollub ]
+  * crypto: bump SADB HT min/max bucket size
+  * crypto: bump SPD HT max/min bucket size
+
+  [ Cian O'Sullivan ]
+  * Fix usage of undeclared TRUE/FALSE macros
+
+  [ Srinivas Narayan ]
+  * 3.13.34
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 04 Aug 2021 13:03:15 +0100
+
+vyatta-dataplane (3.14.6) unstable; urgency=medium
+
+  [ Mike Larson ]
+  * Initial groundwork for pipeline refactoring: outfw and snat
+  * Separate output FW and SNAT into pipeline nodes
+  * split v4 and v6 out fw entry nodes
+  * Collapse v6 pre-out-fw and out-fw into single node
+  * Remove hook/shim from function names
+
+  [ Srinivas Narayan ]
+  * 3.13.32
+
+  [ Thomas Kiely ]
+  * Minor refactor - no functional change
+  * Logging for ICMP rate limiting feature
+
+  [ kalaivani vinothkumar ]
+  * change in 'interface data X phy' show command
+
+  [ ck407g ]
+  * Rework SFP permit list to make vendor name optional
+  * Added tests
+  * Code fixes
+
+  [ Srinivas Narayan ]
+  * Change branch to Jarrow
+  * Add a stage to build on OBS and submit for perf test
+  * 3.13.33
+  * Change OBS Project to Unstable after merge
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 27 Jul 2021 18:35:58 +0100
+
+vyatta-dataplane (3.14.5) unstable; urgency=medium
+
+  [ Ian Wilson ]
+  * cgnat-alg: Remove references to the FTP ALG
+  * cgnat-alg: Allow ALGs to specify a max payload size
+
+  [ Manohar Rapeti ]
+  * IPv6 :Modified default TCLASS value
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 27 Jul 2021 18:31:19 +0100
+
+vyatta-dataplane (3.14.4) unstable; urgency=medium
+
+  [ Thomas Kiely ]
+  * ICMP rate limiting off-by-one
+
+  [ Gaurav Gehani ]
+  * vyatta-dataplane: fix coverity errors
+
+  [ Cian O'Sullivan ]
+  * Make SFP feature return valid JSON
+
+  [ Srinivas Narayan ]
+  * 3.13.31
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 22 Jul 2021 13:22:34 +0100
+
+vyatta-dataplane (3.14.3) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * npf: ensure timeout-get functions cope with no dataplane session
+
+  [ Paul Aitken ]
+  * add missing idempotency
+  * remove trailing blank lines
+
+  [ Srinivas Narayan ]
+  * 3.13.30
+
+  [ Gavin Shearer ]
+  * add inline functions to perform quick hashes
+  * session: change to use xor hash functions
+  * session: change sf_hash() to use xor hash functions
+  * nat: change apm_hash() to use xor hash functions
+  * npf alg: change apt_table_hash() to use xor hash functions
+  * cgnat apm: change apm_hash() to use xor hash functions
+  * cgnat alg: change alg_pinhole_hash() to use xor hash functions
+  * cgnat session: change cgn_sess2_hash() to use xor hash functions
+  * cgnat: change cgn_hash() to use xor hash functions
+  * cgnat: change cgn_source_hash() to use xor hash functions
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 22 Jul 2021 13:21:53 +0100
+
+vyatta-dataplane (3.14.2) unstable; urgency=medium
+
+  [ Gavin Shearer ]
+  * pipeline: add static assertions to detect too many feature enums
+
+  [ Simon Barber ]
+  * Add SFP debug flags
+  * Change SFPd socket to subscriber
+  * Add SFPd socket init
+  * Initial SFP permit list feature code
+  * UT: Add initial sfp permit-list UT framework
+  * UT: Send SFP permit list delete
+  * Add vplsh cmd to verify parts
+  * UT: Add check command to verify SFP permit-list
+  * Add global permit list mismatch cfg
+  * UT: Add code to validate the mismatch config
+  * Add SFP record structure
+  * Add common hash table functions
+  * Add SFPd socket  msg handler
+  * Start and Process updates from  the SFPd
+  * UT:Generate SFPd status file and notify system
+  * Process SFPd updates
+  * Validate SFPd  status against permit-list
+  * UT:Wrapper utility call to get system uptime
+  * Add sfp_holddown flag
+  * Add sfp device dump
+  * UT: Add support for retrieving known SFP devices
+  * Upon dataplane restart load any existing SFP status file
+  * Only walk SFP tables if feature is configured
+  * UT:Release SFPd socket at tidy update
+  * Process SFPd notifications event if permit-list not active
+
+  [ ck407g ]
+  * Shortened protobuf message names
+  * Changes to Data model
+
+  [ Simon Barber ]
+  * UT: Add UT support for the new multi level yang model
+
+  [ Srinivas Narayan ]
+  * 3.13.29
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Tue, 13 Jul 2021 14:20:31 +0100
+
+vyatta-dataplane (3.14.1) unstable; urgency=medium
+
+  [ vishal.dhingra ]
+  * Dataplane Infra: To use configured tos/tclass values
+
+  [ Manohar Rapeti ]
+  * NPF: Reverting the VRVDR-53551 & VRVDR-53233
+  * NFP: Removed the NPF calls
+  * UT: Updated UT Originated firewall
+  * UT: Updated UT for ND packets Originated firewall
+  * UT: Added UT for MPLS ICMP Originated firewall
+  * UT: Added UT for MPLS ICMP Originated firewall
+  * UT: Added UT for MPLS ICMP Originated firewall
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Thu, 08 Jul 2021 17:49:37 +0100
+
 vyatta-dataplane (3.13.48) unstable; urgency=medium
 
   [ kalaivani vinothkumar ]

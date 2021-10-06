@@ -517,7 +517,7 @@ int tap_reader(zloop_t *loop, zmq_pollitem_t *item, void *arg)
 
 	int ret = tap_receive(loop, item, sii, &m);
 
-	if (ret <= 0)
+	if (ret < 0)
 		return ret;
 
 	dp_rcu_thread_online();

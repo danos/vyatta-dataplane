@@ -114,4 +114,10 @@ nd6_resolve_fast(struct ifnet *in_ifp, struct ifnet *ifp, struct rte_mbuf *m,
 	return nd6_resolve(in_ifp, ifp, m, addr, desten);
 }
 
+void nd6_tclass_set(uint8_t tclass);
+uint8_t nd6_tclass_get(void);
+
+void
+nd6_lladdr_ulr_update(struct ifnet *ifp, struct in6_addr *addr, const bool confirmed);
+
 #endif /* ND6_NBR_H */

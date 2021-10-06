@@ -30,6 +30,7 @@
 #include "dp_test_npf_lib.h"
 #include "dp_test_npf_fw_lib.h"
 #include "dp_test_npf_sess_lib.h"
+#include "protobuf/ForwardingClassConfig.pb-c.h"
 
 
 DP_DECL_TEST_SUITE(npf_local);
@@ -269,7 +270,7 @@ static void npf_orig_ipv4_tcp_shadow_setup(
 	dp_test_exp_set_dont_care(*test_exp, 0, (uint8_t *)&ip->check, 2);
 }
 
-DP_START_TEST(ipv4_tcp_shadow, accpet_and_dscp_remark)
+DP_START_TEST(ipv4_tcp_shadow, accept_and_dscp_remark)
 {
 	struct dp_test_expected *test_exp = NULL;
 	struct rte_mbuf *test_pak = NULL;
@@ -610,38 +611,28 @@ DP_START_TEST(ipv4_icmp_transit, packet_to_big_dscp_remark)
 	struct dp_test_expected *exp;
 	struct rte_mbuf *test_pak;
 
+	/* Configure ICMPv4 error packets to be marked as AF12*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP, IPTOS_DSCP_AF12) == true),
+		"TOS configuration is failed");
+
 	npf_orig_ipv4_icmp_transit_setup(&exp, &test_pak);
-
-	struct dp_test_npf_rule_t rules[] = {
-		{
-			.rule     = "1",
-			.pass     = PASS,
-			.stateful = STATELESS,
-			.npf      = "proto-final=1 rproc=markdscp(12)"},
-		RULE_DEF_BLOCK,
-		NULL_RULE };
-
-	struct dp_test_npf_ruleset_t fw = {
-		.rstype = "originate",
-		.name   = "FW_ICMPv4_ORIG",
-		.enable = 1,
-		.attach_point   = "dp3T3",
-		.fwd    = FWD,
-		.dir    = "out",
-		.rules  = rules
-	};
-	dp_test_npf_fw_add(&fw, false);
 
 	dp_test_exp_set_oif_name(exp, "dp3T3");
 
 	/* now send test pak and check we get expected back */
 	dp_test_pak_receive(test_pak, "dp3T3", exp);
 
-	/* After test validations */
-	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+	/*Cleanup */
 
-	/* Clean Up */
-	dp_test_npf_fw_del(&fw, false);
+	/* Configure ICMPv4 error packets to be marked as default value*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP,
+				     IPTOS_PREC_INTERNETCONTROL) == true),
+			    "TOS configuration is failed");
 
 	dp_test_netlink_del_neigh("dp3T3", "2.2.2.1", "aa:bb:cc:dd:ee:ff");
 	dp_test_netlink_del_neigh("dp1T1", "1.1.1.2", "bb:aa:cc:ee:dd:ff");
@@ -651,10 +642,22 @@ DP_START_TEST(ipv4_icmp_transit, packet_to_big_dscp_remark)
 	dp_test_netlink_set_interface_mtu("dp1T1", 1500);
 } DP_END_TEST;
 
-DP_START_TEST(ipv4_icmp_transit, drop)
+/*
+ * Negative Case, Since NPF is not invoked as part of ICMPv4 error packets
+ * Making sure the NPF rules doesn't hit for ICMPv4 error packets
+ */
+
+DP_START_TEST(ipv4_icmp_transit, no_rule_matched)
 {
 	struct dp_test_expected *exp;
 	struct rte_mbuf *test_pak;
+
+	/* Configure ICMPv4 error packets to be marked as AF12*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP, IPTOS_DSCP_AF12) == true),
+		"TOS configuration is failed");
 
 	npf_orig_ipv4_icmp_transit_setup(&exp, &test_pak);
 
@@ -679,15 +682,22 @@ DP_START_TEST(ipv4_icmp_transit, drop)
 	dp_test_npf_fw_add(&fw, false);
 
 	dp_test_exp_set_oif_name(exp, "dp3T3");
-	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 
 	/* Run test */
 	dp_test_pak_receive(test_pak, "dp3T3", exp);
 
-	/* After test validations */
-	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+	/* After test validations , no hit on npf rule*/
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 0);
 
 	/* Clean Up */
+
+	/* Configure ICMPv4 error packets to be marked as default value*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP,
+				     IPTOS_PREC_INTERNETCONTROL) == true),
+			    "TOS configuration is failed");
+
 	dp_test_npf_fw_del(&fw, false);
 
 	dp_test_netlink_del_neigh("dp3T3", "2.2.2.1", "aa:bb:cc:dd:ee:ff");
@@ -703,8 +713,6 @@ DP_DECL_TEST_CASE(npf_orig, ipv6_icmp_transit, NULL, NULL);
  * Test creates ipv6 icmp packet with DF bit set and route it
  * to dataplane interface that has mtu less than the packet size.
  * Router creates and sends ipv6 icmp packet to big message back.
- * Originate firewall is configured in the output interface to verify
- * dscp mark function and action drop.
  *
  *           2001:1:1::1/64 +-----+ 2002:2:2::2/64
  *                          |     |
@@ -781,27 +789,14 @@ DP_START_TEST(ipv6_icmp_transit, packet_to_big_dscp_remark)
 	struct dp_test_expected *exp = NULL;
 	struct rte_mbuf *test_pak = NULL;
 
+	/* Configure ICMPv6 error packets to be marked as AF12*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP, IPTOS_DSCP_AF12) == true),
+		"TOS configuration is failed");
+
 	npf_orig_ipv6_icmp_transit_setup(&exp, &test_pak);
-
-	struct dp_test_npf_rule_t rules[] = {
-		{
-			.rule     = "1",
-			.pass     = PASS,
-			.stateful = STATELESS,
-			.npf      = "proto-final=58 rproc=markdscp(12)"},
-		RULE_DEF_BLOCK,
-		NULL_RULE };
-
-	struct dp_test_npf_ruleset_t fw = {
-		.rstype = "originate",
-		.name   = "FW_ICMPv6_ORIG",
-		.enable = 1,
-		.attach_point   = "dp1T0",
-		.fwd    = FWD,
-		.dir    = "out",
-		.rules  = rules
-	};
-	dp_test_npf_fw_add(&fw, false);
 
 	/* Set test expectations */
 	dp_test_exp_set_oif_name(exp, "dp1T0");
@@ -809,11 +804,13 @@ DP_START_TEST(ipv6_icmp_transit, packet_to_big_dscp_remark)
 	/* Run test */
 	dp_test_pak_receive(test_pak, "dp1T0", exp);
 
-	/* After test validations */
-	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
-
-	/* Clean Up */
-	dp_test_npf_fw_del(&fw, false);
+	/*Clean up*/
+	/* Configure ICMPv6 error packets to be marked as default*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP,
+				     IPTOS_PREC_NETCONTROL) == true),
+			    "TOS configuration is failed");
 
 	dp_test_netlink_del_neigh("dp2T1", "2002:2:2::1", "bb:aa:cc:ee:dd:21");
 	dp_test_netlink_del_neigh("dp1T0", "2001:1:1::2", "aa:bb:cc:dd:ee:10");
@@ -823,11 +820,22 @@ DP_START_TEST(ipv6_icmp_transit, packet_to_big_dscp_remark)
 
 } DP_END_TEST;
 
-DP_START_TEST(ipv6_icmp_transit, drop)
+/*
+ * Negative Case, Since NPF is not invoked as part of ICMPv6 error packets
+ * Making sure the NPF rules doesn't hit for ICMPv6 error packets
+ */
+
+DP_START_TEST(ipv6_icmp_transit, no_npf_match)
 {
 	struct dp_test_expected *exp = NULL;
 	struct rte_mbuf *test_pak = NULL;
 
+	/* Configure ICMPv6 error packets to be marked as AF12*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP, IPTOS_DSCP_AF12) == true),
+		"TOS configuration is failed");
 	npf_orig_ipv6_icmp_transit_setup(&exp, &test_pak);
 
 	struct dp_test_npf_rule_t rules[] = {
@@ -852,15 +860,20 @@ DP_START_TEST(ipv6_icmp_transit, drop)
 
 	/* Set test expectations */
 	dp_test_exp_set_oif_name(exp, "dp1T0");
-	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 
 	/* Run test */
 	dp_test_pak_receive(test_pak, "dp1T0", exp);
 
-	/* After test validations */
-	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+	/* After test validationsi, no hit for NPF rule */
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 0);
 
 	/* Clean Up */
+	/* Configure ICMPv6 error packets to be marked as default*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ICMP,
+				     IPTOS_PREC_NETCONTROL) == true),
+			    "TOS configuration is failed");
 	dp_test_npf_fw_del(&fw, false);
 
 	dp_test_netlink_del_neigh("dp2T1", "2002:2:2::1", "bb:aa:cc:ee:dd:21");
@@ -876,8 +889,6 @@ DP_DECL_TEST_CASE(npf_orig, ipv6_nd_na, NULL, NULL);
 /*
  * Test generates ND Solicitation message and sends to Router.
  * Router replay with ND Advertisement.
- * Originate firewall is configured in the output interface to verify
- * dscp mark function and action drop.
  *
  *        fe80::5054:ff:fe79:3f5/64
  *                   2001:1:1::1/64 +-----+
@@ -997,7 +1008,7 @@ static struct rte_mbuf *dp_test_create_ns_pak(const char *saddr,
 	return ns_pak;
 }
 
-DP_START_TEST(ipv6_nd_na, packet_na_dscp_remark)
+DP_START_TEST(ipv6_nd_na, packet_na_default_dscp)
 {
 	struct dp_test_expected *exp;
 	struct rte_mbuf *ns_pak;
@@ -1014,26 +1025,6 @@ DP_START_TEST(ipv6_nd_na, packet_na_dscp_remark)
 	/* And the neighbour for the return icmp packet */
 	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
 
-	struct dp_test_npf_rule_t rules[] = {
-		{
-			.rule     = "1",
-			.pass     = PASS,
-			.stateful = STATELESS,
-			.npf      = "proto-final=58 rproc=markdscp(12)"},
-		RULE_DEF_BLOCK,
-		NULL_RULE };
-
-	struct dp_test_npf_ruleset_t fw = {
-		.rstype = "originate",
-		.name   = "FW_ICMPv6_ORIG",
-		.enable = 1,
-		.attach_point   = "dp1T0",
-		.fwd    = FWD,
-		.dir    = "out",
-		.rules  = rules
-	};
-	dp_test_npf_fw_add(&fw, false);
-
 	/*
 	 * Test packet
 	 */
@@ -1044,9 +1035,9 @@ DP_START_TEST(ipv6_nd_na, packet_na_dscp_remark)
 	/*
 	 * Expected packet
 	 */
-	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
-			IPTOS_DSCP_AF12, dp_test_intf_name2mac_str("dp1T0"),
-			neigh1_mac_str, "2001:1:1::1");
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip, IPTOS_PREC_INTERNETCONTROL,
+					   dp_test_intf_name2mac_str("dp1T0"), neigh1_mac_str,
+					   "2001:1:1::1");
 
 	exp = dp_test_exp_create(exp_na_pak);
 	rte_pktmbuf_free(exp_na_pak);
@@ -1057,18 +1048,17 @@ DP_START_TEST(ipv6_nd_na, packet_na_dscp_remark)
 	/* Run test */
 	dp_test_pak_receive(ns_pak, "dp1T0", exp);
 
-	/* After test validations */
-	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
-
-	/* Clean Up */
-	dp_test_npf_fw_del(&fw, false);
-
 	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
 	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
 } DP_END_TEST;
 
-DP_START_TEST(ipv6_nd_na, drop)
+/*
+ * Negative Case, Since NPF is not invoked as part of ND packets
+ * Making sure the NPF rules doesn't hit for ND packets
+ */
+
+DP_START_TEST(ipv6_nd_na, no_rule_matched)
 {
 	struct dp_test_expected *exp;
 	struct rte_mbuf *ns_pak;
@@ -1115,22 +1105,21 @@ DP_START_TEST(ipv6_nd_na, drop)
 	/*
 	 * Expected packet
 	 */
-	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
-			IPTOS_DSCP_AF12, dp_test_intf_name2mac_str("dp1T0"),
-			neigh1_mac_str, "2001:1:1::1");
+	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip, IPTOS_PREC_INTERNETCONTROL,
+					   dp_test_intf_name2mac_str("dp1T0"), neigh1_mac_str,
+					   "2001:1:1::1");
 
 	exp = dp_test_exp_create(exp_na_pak);
 	rte_pktmbuf_free(exp_na_pak);
 
 	/* Set test expectations */
 	dp_test_exp_set_oif_name(exp, "dp1T0");
-	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
 
 	/* Run test */
 	dp_test_pak_receive(ns_pak, "dp1T0", exp);
 
-	/* After test validations */
-	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+	/* After test validations , No rule matched*/
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 0);
 
 	/* Clean Up */
 	dp_test_npf_fw_del(&fw, false);
@@ -1144,8 +1133,6 @@ DP_DECL_TEST_CASE(npf_local, cgnat_icmpv4, NULL, NULL);
 /*
  * Test sends ipv4 icmp echo request message to router sgnat public pool.
  * Router sgnat generates and sends ipv4 icmp echo reply.
- * Originate firewall is configured in the output interface to verify
- * dscp mark function and action drop.
  *
  *
  *    Private                                       Public
@@ -1164,7 +1151,6 @@ static void cgnat_icmpv4_setup(struct dp_test_expected **test_exp,
 		struct rte_mbuf **test_pak)
 {
 	struct rte_mbuf *exp_pak = NULL;
-	struct iphdr *ip = NULL;
 
 	dp_test_nl_add_ip_addr_and_connected("dp2T1", "1.1.1.254/24");
 	dp_test_netlink_add_neigh("dp2T1", "1.1.1.1", "aa:bb:cc:dd:2:b1");
@@ -1219,8 +1205,6 @@ static void cgnat_icmpv4_setup(struct dp_test_expected **test_exp,
 
 	*test_pak = dp_test_v4_pkt_from_desc(&test_pak_ICMP);
 	exp_pak = dp_test_v4_pkt_from_desc(&exp_pkt_ICMP);
-	ip = iphdr(exp_pak);
-	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS, IPTOS_DSCP_AF12);
 	dp_test_pktmbuf_eth_init(exp_pak, exp_pkt_ICMP.l2_dst,
 			exp_pkt_ICMP.l2_src, exp_pkt_ICMP.ether_type);
 
@@ -1246,7 +1230,7 @@ static void cgnat_icmpv4_teardown(void)
 	_cgnat_policy_add(_a, _b, _c, _d, _e, _f, _g, _h, _i, true,	\
 			  __FILE__, __func__, __LINE__)
 
-DP_START_TEST(cgnat_icmpv4, packet_dscp_remark)
+DP_START_TEST(cgnat_icmpv4, no_rule_matched)
 {
 	struct dp_test_expected *test_exp = NULL;
 	struct rte_mbuf *test_pak = NULL;
@@ -1288,62 +1272,8 @@ DP_START_TEST(cgnat_icmpv4, packet_dscp_remark)
 	/* Run test */
 	dp_test_pak_receive(test_pak, "dp2T1", test_exp);
 
-	/* After test validations */
-	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
-
-	/* Clean Up */
-	dp_test_npf_fw_del(&fw, false);
-
-	cgnat_policy_del("POLICY1", 10, "dp2T1");
-	dp_test_npf_cmd_fmt(false, "nat-ut pool delete POOL1");
-
-	cgnat_icmpv4_teardown();
-} DP_END_TEST;
-
-DP_START_TEST(cgnat_icmpv4, drop)
-{
-	struct dp_test_expected *test_exp = NULL;
-	struct rte_mbuf *test_pak = NULL;
-
-	cgnat_icmpv4_setup(&test_exp, &test_pak);
-
-	dp_test_npf_cmd("nat-ut pool add POOL1 "
-			"type=cgnat "
-			"prefix=RANGE2/1.1.1.11/32", false);
-
-	cgnat_policy_add("POLICY1", 10, "100.64.0.0/12", "POOL1", "dp2T1",
-			 CGN_MAP_EIM, CGN_FLTR_EIF, CGN_3TUPLE, true);
-
-	struct dp_test_npf_rule_t rules[] = {
-		{
-			.rule     = "1",
-			.pass     = BLOCK,
-			.stateful = STATELESS,
-			.npf      = "proto-final=1 rproc=markdscp(12)"},
-		RULE_DEF_BLOCK,
-		NULL_RULE };
-
-	struct dp_test_npf_ruleset_t fw = {
-		.rstype = "originate",
-		.name   = "FW_ICMPv4_ORIG",
-		.enable = 1,
-		.attach_point   = "dp2T1",
-		.fwd    = FWD,
-		.dir    = "out",
-		.rules  = rules
-	};
-	dp_test_npf_fw_add(&fw, false);
-
-	/* Set test expectations */
-
-	dp_test_exp_set_oif_name(test_exp, "dp2T1");
-	dp_test_exp_set_fwd_status(test_exp, DP_TEST_FWD_DROPPED);
-
-	/* Run test */
-	dp_test_pak_receive(test_pak, "dp2T1", test_exp);
-
-	/* After test validations */
-	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 1);
+	/* After test validations , No rule matched*/
+	dp_test_npf_verify_rule_pkt_count(NULL, &fw, fw.rules[0].rule, 0);
 
 	/* Clean Up */
 	dp_test_npf_fw_del(&fw, false);
@@ -1355,7 +1285,7 @@ DP_START_TEST(cgnat_icmpv4, drop)
 } DP_END_TEST;
 
 /*
- * IPv6 ND and originate firewall
+ * IPv6 ND
  *
  * Inject an IPv6 Neighbor Solicitation pkt in order to generate a Neighbor
  * Advertisement pkt.
@@ -1378,51 +1308,12 @@ DP_START_TEST(npf_v6nbr1, test)
 	/* And the neighbour for the return icmp packet */
 	dp_test_netlink_add_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
 
-	struct dp_test_npf_rule_t rules[] = {
-		{
-			/* Router Solicitation */
-			.rule     = "10",
-			.pass     = PASS,
-			.stateful = STATELESS,
-			.npf      = "proto=58 icmpv6=133"
-		},
-		{
-			/* Router Advertisement */
-			.rule     = "20",
-			.pass     = PASS,
-			.stateful = STATELESS,
-			.npf      = "proto=58 icmpv6=134"
-		},
-		{
-			/* Neighbor Solicitation */
-			.rule     = "30",
-			.pass     = PASS,
-			.stateful = STATELESS,
-			.npf      = "proto=58 icmpv6=135"
-		},
-		{
-			/* Neighbor Advertisement */
-#define NA_RULE_INDEX 3
-			.rule     = "40",
-			.pass     = PASS,
-			.stateful = STATELESS,
-			.npf      = "proto=58 icmpv6=136"
-		},
-		RULE_DEF_BLOCK,
-		NULL_RULE
-	};
-
-	struct dp_test_npf_ruleset_t fw = {
-		.rstype = "originate",
-		.name   = "FW_ORIG",
-		.enable = 1,
-		.attach_point   = "dp1T0",
-		.fwd    = FWD,
-		.dir    = "out",
-		.rules  = rules
-	};
-	dp_test_npf_fw_add(&fw, false);
-
+	/* Configure ND packets to be marked as CS6*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND, IPTOS_CLASS_CS6) == true),
+		"TOS configuration is failed");
 	/*
 	 * Test packet
 	 */
@@ -1442,45 +1333,16 @@ DP_START_TEST(npf_v6nbr1, test)
 
 	/* Set test expectations */
 	dp_test_exp_set_oif_name(exp, "dp1T0");
-	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_FORWARDED);
 
 	/* Run test */
 	dp_test_pak_receive(ns_pak, "dp1T0", exp);
 
-	/*
-	 * Change firewall to drop NA packet
-	 */
-	dp_test_npf_fw_del(&fw, false);
-	rules[NA_RULE_INDEX].pass = BLOCK;
-	dp_test_npf_fw_add(&fw, false);
-
-	/*
-	 * Test packet
-	 */
-	ns_pak = dp_test_create_ns_pak(host_ll_ip, "ff02::1:ff00:2",
-		       IPTOS_CLASS_CS6, neigh1_mac_str, "33:33:ff:00:00:02",
-		       "2001:1:1::1");
-
-	/*
-	 * Expected packet
-	 */
-	exp_na_pak = dp_test_create_na_pak(router_ll_ip, host_ll_ip,
-			   IPTOS_CLASS_CS6, dp_test_intf_name2mac_str("dp1T0"),
-			   neigh1_mac_str, "2001:1:1::1");
-
-	exp = dp_test_exp_create(exp_na_pak);
-	rte_pktmbuf_free(exp_na_pak);
-
-	/* Set test expectations */
-	dp_test_exp_set_oif_name(exp, "dp1T0");
-	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
-
-	/* Run test */
-	dp_test_pak_receive(ns_pak, "dp1T0", exp);
-
-	/* Clean Up */
-	dp_test_npf_fw_del(&fw, false);
-
+	/* Configure ND packets to be marked as default value*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND,
+				     IPTOS_PREC_INTERNETCONTROL) == true),
+			    "TOS configuration is failed");
 	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
 	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
@@ -1545,6 +1407,12 @@ DP_START_TEST(npf_v6nbr2, test)
 		.pub_to_local = { 0 },
 	};
 
+	/* Configure ND packets to be marked as CS6*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND, IPTOS_CLASS_CS6) == true),
+		"TOS configuration is failed");
 	dpt_zone_cfg(&cfg, true, debug);
 
 	/*
@@ -1574,6 +1442,12 @@ DP_START_TEST(npf_v6nbr2, test)
 	/* Clean Up */
 	dpt_zone_cfg(&cfg, false, debug);
 
+	/* Configure ND packets to be marked as default value*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND,
+				     IPTOS_PREC_INTERNETCONTROL) == true),
+			    "TOS configuration is failed");
 	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
 	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
@@ -1651,6 +1525,12 @@ DP_START_TEST(npf_v6nbr3, test)
 
 	dpt_zone_cfg(&cfg, true, debug);
 
+	/* Configure ND packets to be marked as CS6*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND, IPTOS_CLASS_CS6) == true),
+		"TOS configuration is failed");
 	/*
 	 * Test packet
 	 */
@@ -1678,6 +1558,12 @@ DP_START_TEST(npf_v6nbr3, test)
 	/* Clean Up */
 	dpt_zone_cfg(&cfg, false, debug);
 
+	/* Configure ND packets to be marked as default value*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND,
+				     IPTOS_PREC_INTERNETCONTROL) == true),
+			    "TOS configuration is failed");
 	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
 	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
@@ -1756,6 +1642,12 @@ DP_START_TEST(npf_v6nbr4, test)
 
 	dpt_zone_cfg(&cfg, true, debug);
 
+	/* Configure ND packets to be marked as CS6*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND, IPTOS_CLASS_CS6) == true),
+		"TOS configuration is failed");
 	/*
 	 * Test packet
 	 */
@@ -1783,6 +1675,12 @@ DP_START_TEST(npf_v6nbr4, test)
 	/* Clean Up */
 	dpt_zone_cfg(&cfg, false, debug);
 
+	/* Configure ND packets to be marked as default value*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND,
+				     IPTOS_PREC_INTERNETCONTROL) == true),
+			    "TOS configuration is failed");
 	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
 	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
@@ -1860,6 +1758,12 @@ DP_START_TEST(npf_v6nbr5, test)
 
 	dpt_zone_cfg(&cfg, true, debug);
 
+	/* Configure ND packets to be marked as CS6*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND, IPTOS_CLASS_CS6) == true),
+		"TOS configuration is failed");
 	/*
 	 * Test packet
 	 *
@@ -1892,6 +1796,12 @@ DP_START_TEST(npf_v6nbr5, test)
 	/* Clean Up */
 	dpt_zone_cfg(&cfg, false, debug);
 
+	/* Configure ND packets to be marked as default value*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND,
+				     IPTOS_PREC_INTERNETCONTROL) == true),
+			    "TOS configuration is failed");
 	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
 	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
@@ -1962,6 +1872,12 @@ DP_START_TEST(npf_v6nbr6, test)
 		.pub_to_local = { 0 },
 	};
 
+	/* Configure ND packets to be marked as CS6*/
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND, IPTOS_CLASS_CS6) == true),
+		"TOS configuration is failed");
 	dpt_zone_cfg(&cfg, true, debug);
 
 	/*
@@ -1991,6 +1907,12 @@ DP_START_TEST(npf_v6nbr6, test)
 	/* Clean Up */
 	dpt_zone_cfg(&cfg, false, debug);
 
+	/* Configure ND packets to be marked as default value*/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV6,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ND,
+				     IPTOS_PREC_INTERNETCONTROL) == true),
+			    "TOS configuration is failed");
 	dp_test_netlink_del_neigh("dp1T0", host_ll_ip, neigh1_mac_str);
 	dp_test_nl_del_ip_addr_and_connected("dp1T0", "2001:1:1::1/64");
 	dp_test_netlink_del_ip_address("dp1T0", router_ll_ip_subnet);
@@ -2002,8 +1924,8 @@ DP_START_TEST(npf_v6nbr6, test)
  * Test generate ICMP message upon packet too big with don't fragment
  * flag set (from dp_test_ip_icmp.c, DP_START_TEST(ip_icmp, df))
  *
- * Two ICMP packets are generated.  First one is allowed out via a PASS rule.
- * Second one is dropped by a BLOCK rule.
+ * Since NPF is not invoked as part of ICMP error packets, so
+ * rules will not get hit
  *
  * Exercises the ip_output code path.
  */
@@ -2095,57 +2017,6 @@ DP_START_TEST(npf_icmp_orig1, test)
 
 	/* now send test pak and check we get expected back */
 	dp_test_pak_receive(test_pak, "dp3T3", exp);
-
-	/*
-	 * Repeat
-	 */
-	dp_test_npf_fw_del(&fw, false);
-	rules[0].pass = BLOCK;
-	dp_test_npf_fw_add(&fw, false);
-
-	/* Create pak to match the route added above */
-	test_pak = dp_test_create_ipv4_pak("2.2.2.1", "1.1.1.2", 1, &len);
-	ip = iphdr(test_pak);
-	dp_test_set_pak_ip_field(ip, DP_TEST_SET_DF, 1);
-
-	(void)dp_test_pktmbuf_eth_init(test_pak,
-				       dp_test_intf_name2mac_str("dp3T3"),
-				       neigh3_mac_str, RTE_ETHER_TYPE_IPV4);
-
-	/*
-	 * Expected packet
-	 */
-	/* Create expected icmp packet  */
-	icmplen = sizeof(struct iphdr) + 576;
-	icmp_pak = dp_test_create_icmp_ipv4_pak("2.2.2.2", "2.2.2.1",
-						ICMP_DEST_UNREACH,
-						ICMP_FRAG_NEEDED,
-						DPT_ICMP_FRAG_DATA(1400),
-						1, &icmplen, iphdr(test_pak),
-						&ip, &icph);
-	(void)dp_test_pktmbuf_eth_init(icmp_pak,
-				       neigh3_mac_str,
-				       dp_test_intf_name2mac_str("dp3T3"),
-				       RTE_ETHER_TYPE_IPV4);
-
-	dp_test_set_pak_ip_field(ip, DP_TEST_SET_TOS,
-				 IPTOS_PREC_INTERNETCONTROL);
-
-	ip_inner = (struct iphdr *)(icph + 1);
-
-	/* The TTL allowed to be changed from the original */
-	dp_test_set_pak_ip_field(ip_inner, DP_TEST_SET_TTL,
-				 DP_TEST_PAK_DEFAULT_TTL - 1);
-
-	exp = dp_test_exp_create(icmp_pak);
-	rte_pktmbuf_free(icmp_pak);
-
-	dp_test_exp_set_oif_name(exp, "dp3T3");
-	dp_test_exp_set_fwd_status(exp, DP_TEST_FWD_DROPPED);
-
-	/* now send test pak and check we get expected back */
-	dp_test_pak_receive(test_pak, "dp3T3", exp);
-
 
 	/* Clean Up */
 	dp_test_npf_fw_del(&fw, false);

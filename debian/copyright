@@ -2,7 +2,7 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 
 Files: *
 Copyright:
- 2017, AT&T Intellectual Property.  All rights reserved.
+ 2017-2021, AT&T Intellectual Property.  All rights reserved.
  2012-2017 Brocade Communications Systems, Inc.
 License: LGPL-2.1-only
 
@@ -133,6 +133,13 @@ Files:
 Copyright:
  2019 AT&T Intellectual Property.  All rights reserved.
 License: MPL-2.0
+
+Files:
+ src/npf/bstr.c
+ src/npf/bstr.h
+Copyright:
+ Copyright 2010 Derek Fawcus.
+License: BSD-3-Clause
 
 License: LGPL-2.1-only
  This package is free software; you can redistribute it and/or

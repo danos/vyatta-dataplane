@@ -17,8 +17,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <values.h>
-#include <rte_jhash.h>
 
+#include "dp_xor_hash.h"
 #include "util.h"
 #include "soft_ticks.h"
 #include "if_var.h"
@@ -315,12 +315,8 @@ static ALWAYS_INLINE ulong cgn_sess2_hash(const struct cgn_2tuple_key *key)
 	static_assert(sizeof(*key) == 8,
 		      "cgn sess2 key is wrong size");
 
-	/*
-	 * A special optimized version of jhash that handles 1 or more of
-	 * uint32_ts.
-	 */
-	return rte_jhash_32b((const uint32_t *)key,
-			     sizeof(*key) / sizeof(uint32_t), 0);
+	return dp_xor_array32((const uint32_t *)key,
+			      sizeof(*key) / sizeof(uint32_t), 0);
 }
 
 /* Compare two keys.  Returns -1, 0, or 1, similar to memcmp */

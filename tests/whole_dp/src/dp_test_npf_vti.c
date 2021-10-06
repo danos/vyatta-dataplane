@@ -897,3 +897,77 @@ DP_START_TEST(npf_vti_decrypt3, test)
 			    "Expected VTI to be deleted");
 } DP_END_TEST;
 
+/*
+ * TEST: npf_vti_encrypt4
+ *
+ * This check tests that when an ICMP ping packet is received that
+ * should be routed over a VTI tunnel the correct encrypted ESP
+ * packet is transmitted with the configured TOS value.
+ *
+ * Baseline test.  No npf configuration.
+ *
+ *              Packet ---->
+ *                                   vti0
+ *                                   ========================== tunnel
+ *                                   10.10.2.2        10.10.2.3
+ *                      +---------+
+ *                dp1T1 |         | dp2T2
+ *  --------------------+         +---------------
+ *            10.10.1.2 |         | 10.10.2.2
+ *                      +---------+
+ *
+ */
+DP_DECL_TEST_CASE(npf_vti_suite, npf_vti_encrypt4, NULL, NULL);
+DP_START_TEST(npf_vti_encrypt4, test)
+{
+	struct rte_mbuf *output_packet;
+	struct rte_mbuf *input_packet;
+	struct dp_test_expected *exp;
+	int encrypted_payload_len;
+	uint8_t tos = 7;
+
+	/** set the TOS value ***/
+	dp_test_fail_unless((dp_test_ForwardingClassConfig_execute(
+				     FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4,
+				     FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ESP, tos) == true),
+			    "TOS configuration is failed");
+
+	vti_setup_tunnel(VRF_DEFAULT_ID, OUTPUT_MARK);
+	vti_setup_policies_and_sas(VRF_DEFAULT_ID);
+
+	dp_test_fail_unless((vti_count_of_vtis() == 1), "Expected VTI to be created");
+
+	input_packet = build_input_icmp_packet();
+	(void)dp_test_pktmbuf_eth_init(input_packet, dp_test_intf_name2mac_str("dp1T1"), NULL,
+				       RTE_ETHER_TYPE_IPV4);
+
+	output_packet = build_expected_esp_packet(&encrypted_payload_len);
+
+	dp_test_set_pak_ip_field(iphdr(output_packet), DP_TEST_SET_TOS, tos);
+
+	dp_test_set_pak_ip_field(iphdr(output_packet), DP_TEST_SET_DF, 1);
+
+	(void)dp_test_pktmbuf_eth_init(output_packet, PEER_MAC_ADDR,
+				       dp_test_intf_name2mac_str("dp2T2"), RTE_ETHER_TYPE_IPV4);
+
+	exp = dp_test_exp_create(output_packet);
+	rte_pktmbuf_free(output_packet);
+	dp_test_exp_set_oif_name(exp, "dp2T2");
+
+	dp_test_pak_receive(input_packet, "dp1T1", exp);
+	dp_test_crypto_check_sad_packets(VRF_DEFAULT_ID, 1, 84);
+
+	vti_teardown_tunnel(VRF_DEFAULT_ID);
+	vti_teardown_sas_and_policy();
+
+	/** reset the tos value to default **/
+
+	dp_test_fail_unless(
+		(dp_test_ForwardingClassConfig_execute(
+			 FORWARDING_CLASS_CONFIG__ADDRESS_FAMILY__IPV4,
+			 FORWARDING_CLASS_CONFIG__PROTOCOL_TYPE__ESP, IPTOS_INHERIT) == true),
+		"TOS configuration is failed");
+
+	dp_test_fail_unless((vti_count_of_vtis() == 0), "Expected VTI to be deleted");
+}
+DP_END_TEST;

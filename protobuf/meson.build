@@ -30,6 +30,7 @@ protobuf_sources= [
         'SessionPack.proto',
         'ICMPRateLimConfig.proto',
         'TwampResponder.proto',
+        'ForwardingClassConfig.proto'
 ]
 
 install_data(protobuf_sources,

@@ -195,19 +195,29 @@ static void show_debug(FILE *f)
 {
 	unsigned int i;
 	struct dp_debug_event_type *event;
+	char debug_id[2 + (sizeof(dp_debug) * 2) + 1];
 
-	fprintf(f, "Debug %#lx", dp_debug);
+	snprintf(debug_id, sizeof(dp_debug), "%#lx", dp_debug);
+
+	/* Output debug in JSON format */
+	json_writer_t *wr = jsonw_new(f);
+	jsonw_name(wr, "debug");
+	jsonw_start_object(wr);
+	jsonw_name(wr, debug_id);
+	jsonw_start_array(wr);
+
 	for (i = 0; i < ARRAY_SIZE(debug_bits); i++)
 		if (dp_debug & (1ul<<i))
-			fprintf(f, " %s", debug_bits[i]);
+			jsonw_string(wr, debug_bits[i]);
 
 	cds_list_for_each_entry_rcu(event, &dp_debug_event_list_head,
 				    list_entry) {
 		if (dp_debug & event->id)
-			fprintf(f, " %s", event->event_type);
+			jsonw_string(wr, event->event_type);
 	}
-
-	fprintf(f, "\n");
+	jsonw_end_array(wr);
+	jsonw_end_object(wr);
+	jsonw_destroy(&wr);
 }
 
 int cmd_debug(FILE *f, int argc, char **argv)

@@ -84,6 +84,8 @@ int rt_show(struct route_head *rt_head, json_writer_t *json, uint32_t tblid,
 	    const struct in_addr *addr);
 int rt_show_exact(struct route_head *rt_head, json_writer_t *json,
 		  uint32_t tblid, const struct in_addr *addr, uint8_t plen);
+int rt_show_nexthop_stats(struct route_head *rt_head, json_writer_t *json,
+			  uint32_t tblid, struct ip_addr *addr);
 void nexthop_tbl_init(void);
 bool rt_valid_tblid(vrfid_t vrfid, uint32_t tblid);
 int rt_local_show(struct route_head *rt_head, uint32_t id, FILE *f);

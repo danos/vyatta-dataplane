@@ -15,13 +15,14 @@
 #include "npf/cgnat/cgn_map.h"
 #include "npf/cgnat/alg/alg_defs.h"
 
+struct cgn_alg_sess_ctx;
 struct alg_pinhole;
 struct cgn_session;
 
 /*
  * pinhole hash table key.  Ports and addresses are in network byte order.
  *
- * Must be multiple of 4-bytes since rte_jhash_32b is used to hash the key.
+ * Must be multiple of 4-bytes since dp_xor_array32 is used to hash the key.
  */
 struct alg_pinhole_key {
 	uint32_t	pk_daddr;	/* Dest address */

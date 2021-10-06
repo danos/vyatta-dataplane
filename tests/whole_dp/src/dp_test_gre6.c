@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2019-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2019-2021, AT&T Intellectual Property.  All rights reserved.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -30,7 +30,7 @@
 #include "dp_test_lib_intf_internal.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_gre.h"
+#include "dp_test/dp_test_gre.h"
 
 /*
  * Start with a simple topology, 2 interfaces both with addresses, and

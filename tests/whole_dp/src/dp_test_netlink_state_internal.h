@@ -129,37 +129,6 @@ _dp_test_intf_ppp_set_mtu(const char *intf_name, uint32_t vrf_id,
 	_dp_test_intf_ppp_set_mtu(intf_name, vrf, mtu, true, __FILE__,	\
 				  __func__, __LINE__)
 
-void _dp_test_netlink_add_ip_address(const char *ifname, const char *prefix,
-				     uint32_t vrf, bool verify,
-				     const char *file, const char *func,
-				     int line);
-#define dp_test_netlink_add_ip_address(ifname, prefix)			\
-	_dp_test_netlink_add_ip_address(ifname, prefix, VRF_DEFAULT_ID, true, \
-					__FILE__, __func__, __LINE__)
-
-#define dp_test_netlink_add_ip_address_noverify(ifname, prefix)		       \
-	_dp_test_netlink_add_ip_address(ifname, prefix, VRF_DEFAULT_ID, false, \
-					__FILE__, __func__, __LINE__)
-
-#define dp_test_netlink_add_ip_address_vrf(ifname, prefix, vrf)	\
-	_dp_test_netlink_add_ip_address(ifname, prefix, vrf, true,	\
-					__FILE__, __func__, __LINE__)
-
-void _dp_test_netlink_del_ip_address(const char *ifname, const char *prefix,
-				     uint32_t vrf, bool verify,
-				     const char *file, const char *func,
-				     int line);
-#define dp_test_netlink_del_ip_address(ifname, prefix)			\
-	_dp_test_netlink_del_ip_address(ifname,	prefix, VRF_DEFAULT_ID, true, \
-					__FILE__, __func__, __LINE__)
-#define dp_test_netlink_del_ip_address_noverify(ifname, prefix)		       \
-	_dp_test_netlink_del_ip_address(ifname,	prefix, VRF_DEFAULT_ID, false, \
-					__FILE__, __func__, __LINE__)
-#define dp_test_netlink_del_ip_address_vrf(ifname, prefix, vrf)	\
-	_dp_test_netlink_del_ip_address(ifname,	prefix,  vrf, \
-					true,				\
-					__FILE__, __func__, __LINE__)
-
 void
 _dp_test_netlink_set_mpls_forwarding(const char *ifname, bool enable,
 				     const char *file,

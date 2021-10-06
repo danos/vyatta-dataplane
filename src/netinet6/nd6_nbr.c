@@ -132,6 +132,9 @@ static struct nd6_nbr_cfg nd6_cfg = {
 	.nd6_maxhold		= ND6_MAXHOLD,
 };
 
+/* Traffic class value to be used when dataplane sending ND packets. */
+static uint8_t nd6_tclass = IPTOS_CLASS_CS6;
+
 static void nd6_log_conflict(struct ifnet *ifp,
 			     const struct rte_ether_addr *lladdr,
 			     struct in6_addr *saddr)
@@ -576,6 +579,40 @@ nd6_create_valid(struct ifnet *ifp, const struct in6_addr *addr,
 }
 
 /*
+ * This function invokes ipv6_encap_only pipeline node
+ * which calls the ACL feature (which does the Egress ACL filtering)
+ */
+
+static bool
+ip6_acl_filter(struct ifnet *ifp, struct rte_mbuf *m)
+{
+	struct next_hop nh6;
+
+	memset(&nh6, 0, sizeof(nh6));
+	nh_set_ifp(&nh6, ifp);
+	/*
+	 *  since next hop resolution is done explicitly by the caller,
+	 *  We are ignoring next hop resoution with the following flag
+	 */
+	nh6.flags |= RTF_DONT_RESOLVE_NH;
+
+	struct pl_packet pl_pkt = {
+		.mbuf = m,
+		.l2_pkt_type = pkt_mbuf_get_l2_traffic_type(m),
+		.l3_hdr = ip6hdr(m),
+		.in_ifp = NULL,
+		.out_ifp = dp_nh_get_ifp(&nh6),
+		.nxt.v6 = &nh6,
+		.l2_proto = ETH_P_IPV6,
+	};
+
+	if (!pipeline_fused_ipv6_encap_only(&pl_pkt))
+		return false;
+
+	return true;
+}
+
+/*
  * Send an NA packet
  */
 static void
@@ -614,7 +651,7 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 	eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	ip6 = (struct ip6_hdr *)(eh + 1);
-	ip6->ip6_flow = htonl(IPTOS_PREC_INTERNETCONTROL << 20);
+	ip6->ip6_flow = htonl(nd6_tclass << 20);
 	ip6->ip6_vfc &= ~IPV6_VERSION_MASK;
 	ip6->ip6_vfc |= IPV6_VERSION;
 	ip6->ip6_nxt = IPPROTO_ICMPV6;
@@ -661,7 +698,7 @@ nd6_na_output(struct ifnet *ifp, const struct rte_ether_addr *lladdr,
 		  lladdr ? 1 : 0);
 	ND6NBR_INC(natx);
 
-	if (ip6_spath_filter(ifp, &m))
+	if (!ip6_acl_filter(ifp, m))
 		return;
 
 	/*
@@ -1047,7 +1084,7 @@ nd6_ns_build(struct ifnet *ifp, const struct in6_addr *res_src,
 	eh->ether_type = htons(RTE_ETHER_TYPE_IPV6);
 
 	ip6 = (struct ip6_hdr *)(eh + 1);
-	ip6->ip6_flow = htonl(IPTOS_PREC_INTERNETCONTROL << 20);
+	ip6->ip6_flow = htonl(nd6_tclass << 20);
 	ip6->ip6_vfc &= ~IPV6_VERSION_MASK;
 	ip6->ip6_vfc |= IPV6_VERSION;
 	ip6->ip6_nxt = IPPROTO_ICMPV6;
@@ -1117,7 +1154,7 @@ static void nd6_ns_output(struct ifnet *ifp,
 	m = nd6_ns_build(ifp, res_src, taddr6, dst_mac);
 
 	if (m) {
-		if (!ip6_spath_filter(ifp, &m))
+		if (ip6_acl_filter(ifp, m))
 			if_output(ifp, m, NULL, ETH_P_IPV6);
 	}
 }
@@ -1596,6 +1633,39 @@ nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 }
 
 /*
+ * Handles upper layer reachability updates
+ */
+void
+nd6_lladdr_ulr_update(struct ifnet *ifp, struct in6_addr *addr, const bool confirmed)
+{
+	struct llentry *lle;
+
+	dp_rcu_read_lock();
+	lle = in6_lltable_lookup(ifp, 0, addr);
+	if (!lle)
+		goto end;
+
+	if (lle->la_flags & (LLE_STATIC | LLE_DELETED))
+		goto end;
+
+	if (confirmed) {
+		ND6_DEBUG("Add ULR flag - interface:%s, ip:%s, current state:%s\n",
+				ifp->if_name, lladdr_ntop6(lle), nd6_dbgstate[lle->la_state]);
+		lle->la_flags |= LLE_ULR;
+		nd6_change_state(ifp, lle, ND6_LLINFO_REACHABLE, nd6_cfg.nd6_scavenge_time);
+
+	} else {
+		ND6_DEBUG("Remove ULR flag - interface:%s, ip:%s, current state:%s\n",
+				ifp->if_name, lladdr_ntop6(lle), nd6_dbgstate[lle->la_state]);
+		lle->la_flags &= ~LLE_ULR;
+		nd6_change_state(ifp, lle, ND6_LLINFO_STALE, nd6_cfg.nd6_scavenge_time);
+	}
+
+end:
+	dp_rcu_read_unlock();
+}
+
+/*
  * the caller acquires and releases the lock on the lltbls
  * Returns the llentry locked
  */
@@ -1789,7 +1859,7 @@ in6_ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 		rte_spinlock_unlock(&lle->ll_lock);
 
 		if (m) {
-			if (!ip6_spath_filter(ifp, &m))
+			if (ip6_acl_filter(ifp, m))
 				if_output(ifp, m, NULL, ETH_P_IPV6);
 		}
 
@@ -1835,6 +1905,9 @@ nd6_cache_age(struct lltable *llt, bool refresh_timer_expired)
 			llentry_routing_install(lle);
 
 		if (lle->la_flags & LLE_STATIC)
+			continue;
+
+		if (lle->la_flags & LLE_ULR)
 			continue;
 
 		if (lle->ll_expire == 0 || !refresh_timer_expired)
@@ -2010,3 +2083,13 @@ static const struct dp_event_ops nd6_lladdr_events = {
 };
 
 DP_STARTUP_EVENT_REGISTER(nd6_lladdr_events);
+
+void nd6_tclass_set(uint8_t tclass)
+{
+	nd6_tclass = tclass;
+}
+
+uint8_t nd6_tclass_get(void)
+{
+	return nd6_tclass;
+}

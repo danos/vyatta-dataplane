@@ -58,7 +58,11 @@
 #include <rte_dev_info.h>
 #include <transceiver.h>
 #include <ieee754.h>
-#include <sfp_permit_list.h>
+#include <transceiver.h>
+#include "protobuf.h"
+#include "protobuf/SFPMonitor.pb-c.h"
+#include "if/dpdk-eth/dpdk_eth_if.h"
+#include "if_var.h"
 
 struct _nv {
 	int v;
@@ -388,6 +392,28 @@ static struct _nv voltage_alarm_warn_flags[] = {
 	{ 0x5, "vcc_high_warn" },
 	{ 0x4, "vcc_low_warn"  },
 	{ 0x00,  NULL }
+};
+
+/* all values above 0xa correspond to copper SFPs */
+#define QSFP_DEV_TECH_COPPER_MIN 0xa
+
+static struct _nv sff_8636_dev_tech[] = {
+	{ 0x0, "850_nm_vcsel" },
+	{ 0x1, "1310_nm_vcsel" },
+	{ 0x2, "1550_nm_vcsel" },
+	{ 0x3, "1310_nm_fp" },
+	{ 0x4, "1310_nm_dfb" },
+	{ 0x5, "1550_nm_dfb" },
+	{ 0x6, "1310_nm_eml" },
+	{ 0x7, "1550_nm_eml" },
+	{ 0x8, "others" },
+	{ 0x9, "1490_nm_dfb" },
+	{ 0xa, "copper_unequalized" },
+	{ 0xb, "copper_passive_equalized" },
+	{ 0xc, "copper_dual_equalizer" },
+	{ 0xd, "copper_far_equalizer" },
+	{ 0xe, "copper_near_equalizer" },
+	{ 0xf, "copper_linear_equalizer" },
 };
 
 #define SFP_CALIB_CONST_RX_PWR_SIZE    4
@@ -950,6 +976,40 @@ print_sfp_vendor_date(const struct rte_dev_eeprom_info *eeprom_info,
 }
 
 static void
+get_qsfp_device_tech(const struct rte_dev_eeprom_info *eeprom_info,
+		     uint8_t *dev_tech)
+{
+	uint8_t xbuf = 0;
+
+	if (get_eeprom_data(eeprom_info, SFF_8436_BASE, SFF_8436_DEV_TECH,
+			    1, (uint8_t *)&xbuf))
+		return;
+
+	/*
+	 * SFF 8436 Table 37
+	 * device technology is in upper nibble
+	 */
+	xbuf = (xbuf & 0xf0) >> 4;
+
+	*dev_tech = xbuf;
+}
+
+static void
+print_qsfp_device_tech(const struct rte_dev_eeprom_info *eeprom_info,
+		       json_writer_t *wr)
+{
+	const char *x;
+	uint8_t dev_tech = 0;
+
+	get_qsfp_device_tech(eeprom_info, &dev_tech);
+
+	x = find_value(sff_8636_dev_tech, dev_tech);
+
+	if (x)
+		jsonw_string_field(wr, "dev_tech", x);
+}
+
+static void
 print_qsfp_vendor_name(const struct rte_dev_eeprom_info *eeprom_info,
 		       json_writer_t *wr)
 {
@@ -1076,10 +1136,10 @@ print_qsfp_vendor(const struct rte_dev_eeprom_info *eeprom_info,
  * that is considered valid between –40 and +125C.
  *
  */
-static void
-convert_sff_temp(json_writer_t *wr, const char *field_name,
-		 const uint8_t *xbuf,
-		 const struct sfp_calibration_constants *c_consts)
+
+static double
+__convert_sff_temp(const uint8_t *xbuf,
+		   const struct sfp_calibration_constants *c_consts)
 {
 	int16_t temp;
 	double d;
@@ -1093,6 +1153,18 @@ convert_sff_temp(json_writer_t *wr, const char *field_name,
 		so = &c_consts->slope_offs[SFP_CALIB_CONST_TEMPERATURE];
 		d = (so->slope * d) + so->offset;
 	}
+
+	return d;
+}
+
+static void
+convert_sff_temp(json_writer_t *wr, const char *field_name,
+		 const uint8_t *xbuf,
+		 const struct sfp_calibration_constants *c_consts)
+{
+	double d;
+
+	d = __convert_sff_temp(xbuf, c_consts);
 	jsonw_float_field(wr, field_name, d);
 }
 
@@ -1100,10 +1172,9 @@ convert_sff_temp(json_writer_t *wr, const char *field_name,
  * Retrieves supplied voltage (SFF-8472, SFF-8436).
  * 16-bit usigned value, treated as range 0..+6.55 Volts
  */
-static void
-convert_sff_voltage(json_writer_t *wr, const char *field_name,
-		    const uint8_t *xbuf,
-		    const struct sfp_calibration_constants *c_consts)
+static double
+__convert_sff_voltage(const uint8_t *xbuf,
+		      const struct sfp_calibration_constants *c_consts)
 {
 	double d;
 	const struct slope_off *so;
@@ -1114,6 +1185,17 @@ convert_sff_voltage(json_writer_t *wr, const char *field_name,
 		so = &c_consts->slope_offs[SFP_CALIB_CONST_VOLTAGE];
 		d = (so->slope * d) + so->offset;
 	}
+	return d;
+}
+
+static void
+convert_sff_voltage(json_writer_t *wr, const char *field_name,
+		    const uint8_t *xbuf,
+		    const struct sfp_calibration_constants *c_consts)
+{
+	double d;
+
+	d = __convert_sff_voltage(xbuf, c_consts);
 	jsonw_float_field(wr, field_name, d / 10000);
 }
 
@@ -1121,10 +1203,9 @@ convert_sff_voltage(json_writer_t *wr, const char *field_name,
  * Retrieves power in mW (SFF-8472).
  * 16-bit unsigned value, treated as a range of 0 - 6.5535 mW
  */
-static void
-convert_sff_power(json_writer_t *wr, const char *field_name,
-		  const uint8_t *xbuf, bool rx,
-		  const struct sfp_calibration_constants *c_consts)
+static double
+__convert_sff_power(const uint8_t *xbuf, bool rx,
+		    const struct sfp_calibration_constants *c_consts)
 {
 	double mW, tmp_mW;
 	int i;
@@ -1147,13 +1228,23 @@ convert_sff_power(json_writer_t *wr, const char *field_name,
 	} else
 		mW = tmp_mW;
 
-	jsonw_float_field(wr, field_name, mW / 10000);
+	return mW / 10000;
 }
 
 static void
-convert_sff_bias(json_writer_t *wr, const char *field_name,
-		 const uint8_t *xbuf,
-		 const struct sfp_calibration_constants *c_consts)
+convert_sff_power(json_writer_t *wr, const char *field_name,
+		  const uint8_t *xbuf, bool rx,
+		  const struct sfp_calibration_constants *c_consts)
+{
+	double mW;
+
+	mW = __convert_sff_power(xbuf, rx, c_consts);
+	jsonw_float_field(wr, field_name, mW);
+}
+
+static double
+__convert_sff_bias(const uint8_t *xbuf,
+		   const struct sfp_calibration_constants *c_consts)
 {
 	double mA;
 	const struct slope_off *so;
@@ -1164,7 +1255,20 @@ convert_sff_bias(json_writer_t *wr, const char *field_name,
 		so = &c_consts->slope_offs[SFP_CALIB_CONST_LASER_BIAS];
 		mA = (so->slope * mA) + so->offset;
 	}
-	jsonw_float_field(wr, field_name, mA / 500);
+	mA /= 500;
+
+	return mA;
+}
+
+static void
+convert_sff_bias(json_writer_t *wr, const char *field_name,
+		 const uint8_t *xbuf,
+		 const struct sfp_calibration_constants *c_consts)
+{
+	double mA;
+
+	mA = __convert_sff_bias(xbuf, c_consts);
+	jsonw_float_field(wr, field_name, mA);
 }
 
 static void
@@ -1636,13 +1740,15 @@ print_qsfp_rx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 
 static void
 print_qsfp_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
-		     json_writer_t *wr)
+		      uint8_t dev_tech, json_writer_t *wr)
 {
 	print_qsfp_temp_thresholds(eeprom_info, wr);
 	print_qsfp_voltage_thresholds(eeprom_info, wr);
-	print_qsfp_bias_thresholds(eeprom_info, wr);
-	print_qsfp_tx_power_thresholds(eeprom_info, wr);
-	print_qsfp_rx_power_thresholds(eeprom_info, wr);
+	if (dev_tech < QSFP_DEV_TECH_COPPER_MIN) {
+		print_qsfp_bias_thresholds(eeprom_info, wr);
+		print_qsfp_tx_power_thresholds(eeprom_info, wr);
+		print_qsfp_rx_power_thresholds(eeprom_info, wr);
+	}
 }
 
 static void
@@ -1889,24 +1995,28 @@ print_qsfp_aw_flags(const struct rte_dev_eeprom_info *eeprom_info,
 	jsonw_start_array(wr);
 
 	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "channel", 1);
 	convert_qsfp_aw_flags(wr, tx_bias_aw_chan_upper_flags, xbuf_tx_bias_12);
 	convert_qsfp_aw_flags(wr, tx_pwr_aw_chan_upper_flags, xbuf_tx_pow_12);
 	convert_qsfp_aw_flags(wr, rx_pwr_aw_chan_upper_flags, xbuf_rx_pow_12);
 	jsonw_end_object(wr);
 
 	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "channel", 2);
 	convert_qsfp_aw_flags(wr, tx_bias_aw_chan_lower_flags, xbuf_tx_bias_12);
 	convert_qsfp_aw_flags(wr, tx_pwr_aw_chan_lower_flags, xbuf_tx_pow_12);
 	convert_qsfp_aw_flags(wr, rx_pwr_aw_chan_lower_flags, xbuf_rx_pow_12);
 	jsonw_end_object(wr);
 
 	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "channel", 3);
 	convert_qsfp_aw_flags(wr, tx_bias_aw_chan_upper_flags, xbuf_tx_bias_34);
 	convert_qsfp_aw_flags(wr, tx_pwr_aw_chan_upper_flags, xbuf_tx_pow_34);
 	convert_qsfp_aw_flags(wr, rx_pwr_aw_chan_upper_flags, xbuf_rx_pow_34);
 	jsonw_end_object(wr);
 
 	jsonw_start_object(wr);
+	jsonw_uint_field(wr, "channel", 4);
 	convert_qsfp_aw_flags(wr, tx_bias_aw_chan_lower_flags, xbuf_tx_bias_34);
 	convert_qsfp_aw_flags(wr, tx_pwr_aw_chan_lower_flags, xbuf_tx_pow_34);
 	convert_qsfp_aw_flags(wr, rx_pwr_aw_chan_lower_flags, xbuf_rx_pow_34);
@@ -1955,7 +2065,7 @@ static void print_sfp_status_byte(const struct rte_dev_eeprom_info *eeprom_info,
 static void
 print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		 const struct rte_dev_eeprom_info *eeprom_info,
-		 json_writer_t *wr)
+		 bool include_static, json_writer_t *wr)
 {
 	struct sfp_calibration_constants c_consts, *c_const_p;
 	uint8_t diag_type;
@@ -1967,29 +2077,32 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		return;
 
 	/*
-	 * Read monitoring data IFF it is supplied AND is
-	 * internally calibrated
+	 * Read monitoring data IFF it is supplied
 	 */
 	if (diag_type & SFF_8472_DDM_DONE)
 		do_diag = 1;
 
 	/* Transceiver type */
 	print_sfp_identifier(eeprom_info, wr);
-	print_sfp_ext_identifier(eeprom_info, wr);
-	print_sfp_transceiver_class(eeprom_info, wr);
-	print_sfp_connector(eeprom_info, wr);
-	print_sfp_vendor(module_info, eeprom_info, wr);
-	print_sfp_transceiver_descr(eeprom_info, wr);
-	print_sfp_br(eeprom_info, wr);
-	print_sfp_diag_type(eeprom_info, wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_OM4, "copper_len", wr);
-	print_sfp_encoding(eeprom_info, wr);
-	print_sfp_8472_compl(eeprom_info, wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_SMF, "smf_100", wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_SMF_KM, "smf_km", wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_625UM, "smf_om1", wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_50UM, "smf_om2", wr);
-	print_sfp_len(eeprom_info, SFF_8472_LEN_OM3, "smf_om3", wr);
+
+	if (include_static) {
+		print_sfp_ext_identifier(eeprom_info, wr);
+		print_sfp_transceiver_class(eeprom_info, wr);
+		print_sfp_connector(eeprom_info, wr);
+		print_sfp_vendor(module_info, eeprom_info, wr);
+		print_sfp_transceiver_descr(eeprom_info, wr);
+		print_sfp_br(eeprom_info, wr);
+		print_sfp_diag_type(eeprom_info, wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_OM4, "copper_len", wr);
+		print_sfp_encoding(eeprom_info, wr);
+		print_sfp_8472_compl(eeprom_info, wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_SMF, "smf_100", wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_SMF_KM, "smf_km", wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_625UM, "smf_om1", wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_50UM, "smf_om2", wr);
+		print_sfp_len(eeprom_info, SFF_8472_LEN_OM3, "smf_om3", wr);
+	}
+
 	/*
 	 * Request current measurements iff they are provided:
 	 */
@@ -2007,31 +2120,39 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 		print_sfp_tx_power(up, eeprom_info, c_const_p, wr);
 		print_sfp_laser_bias(eeprom_info, c_const_p, wr);
 		print_sfp_status_byte(eeprom_info, wr);
+
+		if (include_static)
+			print_sfp_thresholds(eeprom_info, wr);
+
+		print_sfp_alarm_flags(eeprom_info, wr);
+		print_sfp_warning_flags(eeprom_info, wr);
 	}
-	print_sfp_thresholds(eeprom_info, wr);
-	print_sfp_alarm_flags(eeprom_info, wr);
-	print_sfp_warning_flags(eeprom_info, wr);
 }
 
 static void
 print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
-		  json_writer_t *wr)
+		  bool include_static, json_writer_t *wr)
 {
+	uint8_t dev_tech = 0;
+
 	/* Transceiver type */
 	print_qsfp_identifier(eeprom_info, wr);
-	print_qsfp_ext_identifier(eeprom_info, wr);
-	print_qsfp_transceiver_class(eeprom_info, wr);
-	print_qsfp_connector(eeprom_info, wr);
-	print_qsfp_vendor(eeprom_info, wr);
-	print_qsfp_encoding(eeprom_info, wr);
-	print_qsfp_rev_compliance(eeprom_info, wr);
-	print_qsfp_br(eeprom_info, wr);
 
-	print_qsfp_len(eeprom_info, SFF_8436_LEN_SMF_KM, "smf_km", wr);
-	print_qsfp_len(eeprom_info, SFF_8436_LEN_OM1, "smf_om1", wr);
-	print_qsfp_len(eeprom_info, SFF_8436_LEN_OM2, "smf_om2", wr);
-	print_qsfp_len(eeprom_info, SFF_8436_LEN_OM3, "smf_om3", wr);
+	if (include_static) {
+		print_qsfp_ext_identifier(eeprom_info, wr);
+		print_qsfp_transceiver_class(eeprom_info, wr);
+		print_qsfp_connector(eeprom_info, wr);
+		print_qsfp_device_tech(eeprom_info, wr);
+		print_qsfp_vendor(eeprom_info, wr);
+		print_qsfp_encoding(eeprom_info, wr);
+		print_qsfp_rev_compliance(eeprom_info, wr);
+		print_qsfp_br(eeprom_info, wr);
 
+		print_qsfp_len(eeprom_info, SFF_8436_LEN_SMF_KM, "smf_km", wr);
+		print_qsfp_len(eeprom_info, SFF_8436_LEN_OM1, "smf_om1", wr);
+		print_qsfp_len(eeprom_info, SFF_8436_LEN_OM2, "smf_om2", wr);
+		print_qsfp_len(eeprom_info, SFF_8436_LEN_OM3, "smf_om3", wr);
+	}
 
 	/*
 	 * The standards in this area are not clear when the
@@ -2041,30 +2162,34 @@ print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 	 */
 	print_qsfp_temp(eeprom_info, wr);
 	print_qsfp_voltage(eeprom_info, wr);
-	jsonw_name(wr, "measured_values");
-	jsonw_start_array(wr);
-	for (int i = 0; i < 4; i++) {
-		jsonw_start_object(wr);
-		print_qsfp_rx_power(eeprom_info, wr, i);
-		print_qsfp_tx_power(up, eeprom_info, wr, i);
-		print_qsfp_laser_bias(eeprom_info, wr, i);
-		jsonw_end_object(wr);
-	}
-	jsonw_end_array(wr);
 
+	get_qsfp_device_tech(eeprom_info, &dev_tech);
+	if (dev_tech < QSFP_DEV_TECH_COPPER_MIN) {
+		jsonw_name(wr, "measured_values");
+		jsonw_start_array(wr);
+		for (int i = 0; i < 4; i++) {
+			jsonw_start_object(wr);
+			jsonw_uint_field(wr, "channel", i+1);
+			print_qsfp_rx_power(eeprom_info, wr, i);
+			print_qsfp_tx_power(up, eeprom_info, wr, i);
+			print_qsfp_laser_bias(eeprom_info, wr, i);
+			jsonw_end_object(wr);
+		}
+		jsonw_end_array(wr);
+		print_qsfp_aw_flags(eeprom_info, wr);
+	}
 	print_qsfp_temp_aw_flags(eeprom_info, wr);
 	print_qsfp_voltage_aw_flags(eeprom_info, wr);
 
-	print_qsfp_aw_flags(eeprom_info, wr);
-
-	print_qsfp_thresholds(eeprom_info, wr);
+	if (include_static)
+		print_qsfp_thresholds(eeprom_info, dev_tech, wr);
 }
 
 
 void
 sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	   const struct rte_dev_eeprom_info *eeprom_info,
-	   json_writer_t *wr)
+	   bool include_static, json_writer_t *wr)
 {
 	uint8_t id_byte;
 
@@ -2085,10 +2210,10 @@ sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	case SFF_8024_ID_QSFP:
 	case SFF_8024_ID_QSFPPLUS:
 	case SFF_8024_ID_QSFP28:
-		print_qsfp_status(up, eeprom_info, wr);
+		print_qsfp_status(up, eeprom_info, include_static, wr);
 		break;
 	default:
-		print_sfp_status(up, module_info, eeprom_info, wr);
+		print_sfp_status(up, module_info, eeprom_info, include_static, wr);
 	}
 }
 
@@ -2217,4 +2342,185 @@ void sfpd_unsubscribe(void)
 			zsock_resolve(sfpd_notify_socket));
 
 	sfpd_close_socket();
+}
+
+#define SFPD_REP_SOCKET "ipc:///var/run/vyatta/sfp_rep.socket"
+
+static int
+sfpd_command(const char *format, ...)
+	__attribute__ ((__format__(__printf__, 1, 2)));
+static int
+sfpd_command(const char *format, ...)
+{
+	int ret;
+	va_list ap;
+	zsock_t *req;
+	char *command;
+	char *str;
+
+	va_start(ap, format);
+	ret = vasprintf(&command, format, ap);
+	va_end(ap);
+	if (ret < 0)
+		return -ENOMEM;
+
+	req = zsock_new_req(SFPD_REP_SOCKET);
+	if (!req) {
+		RTE_LOG(ERR, DATAPLANE,
+			"unable to create SFP request socket\n");
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	if (zstr_send(req, command) < 0) {
+		RTE_LOG(ERR, DATAPLANE, "unable to send SFP command\n");
+		ret = -ECONNREFUSED;
+		goto exit;
+	}
+
+	do {
+		str = zstr_recv(req);
+	} while (!str && errno == EINTR && !zsys_interrupted);
+
+	if (str) {
+		if (strcmp(str, "{\"result\":\"OK\"}") != 0)
+			RTE_LOG(ERR, DATAPLANE,
+				"unexpected response: %s to command %s\n",
+				str, command);
+		free(str);
+	}
+
+exit:
+	zsock_destroy(&req);
+	free(command);
+	return ret;
+}
+
+static int
+cmd_sfp_monitor_cfg(struct pb_msg *msg)
+{
+	int ret = 0;
+	SfpMonitorCfg *sfp_msg =
+	       sfp_monitor_cfg__unpack(NULL, msg->msg_len, msg->msg);
+
+	if (!sfp_msg->has_interval) {
+		ret = -EINVAL;
+		goto done;
+	}
+
+	ret = sfpd_command(
+		"{"
+		"    \"command\": \"SFPMONITORINTERVAL\","
+		"    \"value\": \"%u\""
+		"}", sfp_msg->interval);
+
+done:
+	sfp_monitor_cfg__free_unpacked(sfp_msg, NULL);
+
+	return ret;
+}
+
+PB_REGISTER_CMD(sfp_monitor_cmd) = {
+	.cmd = "vyatta:sfpmonitor",
+	.handler = cmd_sfp_monitor_cfg,
+};
+
+static bool
+cmd_intf_sfp_status(struct ifnet *ifp, void *arg)
+{
+	struct dpdk_eth_if_softc *sc;
+	json_writer_t *wr = arg;
+	int rv;
+	uint8_t diag_type = 0;
+
+	sc = rcu_dereference(ifp->if_softc);
+	if (!sc)
+		return false;
+
+	rv = dpdk_eth_if_get_xcvr_info(ifp);
+	if (rv)
+		return false;
+
+	switch (sc->xcvr_info.module_info.type) {
+	case RTE_ETH_MODULE_SFF_8472:
+		/* Read diagnostic monitoring type */
+		if (get_eeprom_data(&sc->xcvr_info.eeprom_info, SFF_8472_BASE,
+				    SFF_8472_DIAG_TYPE, 1, &diag_type))
+			return false;
+
+		/*
+		 * Read monitoring data IFF it is supplied
+		 */
+		if (!(diag_type & SFF_8472_DDM_DONE))
+			return false;
+
+		break;
+
+	case RTE_ETH_MODULE_SFF_8436:
+	case RTE_ETH_MODULE_SFF_8636:
+		/* Some monitoring flags always present */
+		break;
+
+	default:
+		return false;
+	}
+
+	jsonw_start_object(wr);
+
+	jsonw_string_field(wr, "name", ifp->if_name);
+	dpdk_eth_if_show_xcvr_info(ifp, false, wr);
+
+	jsonw_end_object(wr);
+
+	return false;
+}
+
+static void cmd_sfp_status(json_writer_t *wr, char *ifname)
+{
+	struct ifnet *ifp;
+
+	jsonw_name(wr, "sfp_status");
+	jsonw_start_array(wr);
+	if (ifname) {
+		ifp = dp_ifnet_byifname(ifname);
+		if (!ifp)
+			return;
+
+		cmd_intf_sfp_status(ifp, wr);
+	} else
+		dpdk_eth_if_walk(cmd_intf_sfp_status, wr);
+
+	jsonw_end_array(wr);
+}
+
+int cmd_sfp_monitor_op(FILE *f, int argc, char *argv[])
+{
+	json_writer_t *wr;
+	char *ifname = NULL;
+	int ret = 0;
+
+	if (f == NULL)
+		f = stderr;
+
+	wr = jsonw_new(f);
+	if (!wr)
+		return -ENOMEM;
+
+	if (argc > 3 || argc < 2) {
+		ret = -EINVAL;
+		goto done;
+	}
+
+	if (!strcmp(argv[1], "show")) {
+		if (argc == 3)
+			ifname = argv[2];
+		cmd_sfp_status(wr, ifname);
+	} else
+		ret = -EINVAL;
+
+done:
+	if (ret)
+		fprintf(f, "Usage: sfp-monitor show [ <ifname> ]");
+	jsonw_destroy(&wr);
+	return ret;
 }

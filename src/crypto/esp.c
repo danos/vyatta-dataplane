@@ -90,6 +90,11 @@ struct esp_hdr_ctx {
 #define ESP_SEQ_SA_REKEY_THRESHOLD 0xF3333300u
 #define ESP_SEQ_SA_BLOCK_LIMIT       0xFFFFFFFFu
 
+/** TOS value to be used when dataplane sending IPV4 ESP packets. **/
+static uint16_t esp_tos = IPTOS_INHERIT;
+/** TOS value to be used when dataplane sending IPV6 ESP packets. **/
+static uint16_t esp_tclass = IPTOS_INHERIT;
+
 static struct rte_mbuf *buf_tail_free(struct rte_mbuf *m)
 {
 	struct rte_mbuf *p = NULL, *m2 = m;
@@ -1006,24 +1011,29 @@ esp_out_new_hdr6(bool transport, uint8_t orig_family, void *l3hdr,
 
 		memcpy(new_l3hdr, &sa->ip6_hdr,
 		       sizeof(sa->ip6_hdr));
-		if (!(sa->extra_flags & XFRM_SA_XFLAG_DONT_ENCAP_DSCP)) {
-			if (orig_family == AF_INET6)
-				ip6_tos_copy_inner(&new_ip6->ip6_flow,
-						   &ip6->ip6_flow);
-			else
-				ip6_ip_dscp_copy_inner(
-					&new_ip6->ip6_flow,
-					((struct iphdr *)l3hdr)->tos);
-		}
 
-		if (!(sa->flags & XFRM_STATE_NOECN)) {
-			if (orig_family == AF_INET6)
-				ip6_tos_ecn_encap(&new_ip6->ip6_flow,
-						  &ip6->ip6_flow);
-			else
-				ip6_ip_ecn_encap(
-					&new_ip6->ip6_flow,
-					((struct iphdr *)l3hdr)->tos);
+		if (esp_tclass != IPTOS_INHERIT) {
+			/* Set the TCLASS as per configuration */
+			uint32_t outer = ntohl(new_ip6->ip6_flow);
+			uint32_t new_tclass = esp_tclass << IPV6_FLOW_TOS_SHIFT;
+			outer |= new_tclass & IPV6_FLOW_TOS;
+			new_ip6->ip6_flow = htonl(outer);
+		} else {
+			if (!(sa->extra_flags & XFRM_SA_XFLAG_DONT_ENCAP_DSCP)) {
+				if (orig_family == AF_INET6)
+					ip6_tos_copy_inner(&new_ip6->ip6_flow, &ip6->ip6_flow);
+				else
+					ip6_ip_dscp_copy_inner(&new_ip6->ip6_flow,
+							       ((struct iphdr *)l3hdr)->tos);
+			}
+
+			if (!(sa->flags & XFRM_STATE_NOECN)) {
+				if (orig_family == AF_INET6)
+					ip6_tos_ecn_encap(&new_ip6->ip6_flow, &ip6->ip6_flow);
+				else
+					ip6_ip_ecn_encap(&new_ip6->ip6_flow,
+							 ((struct iphdr *)l3hdr)->tos);
+			}
 		}
 	}
 
@@ -1075,7 +1085,11 @@ esp_out_new_hdr4(bool transport, uint8_t orig_family, void *l3hdr,
 					&((struct ip6_hdr *)l3hdr)->ip6_flow);
 		}
 
-		ip_tos_ecn_set(new_ip, new_tos);
+		/*
+		 * Set the TOS as per configuration,
+		 * otherwise use the inner header tos value
+		 */
+		ip_tos_ecn_set(new_ip, esp_tos != IPTOS_INHERIT ? esp_tos : new_tos);
 
 		if (!(sa->flags & XFRM_STATE_NOPMTUDISC)) {
 			new_ip->frag_off = ip->frag_off & htons(IP_DF);
@@ -1485,4 +1499,32 @@ int udp_esp_dp6(struct rte_mbuf *m,
 		return crypto_enqueue_inbound_v6(m, ifp, spi);
 
 	return 1;
+}
+
+void esp_tos_tclass_set(uint16_t family, uint16_t tos_tclass)
+{
+	switch (family) {
+	case AF_INET:
+		esp_tos = tos_tclass;
+		break;
+	case AF_INET6:
+		esp_tclass = tos_tclass;
+		break;
+	default:
+		ESP_INFO("Failed to set tos/tclass value for unknown family: %u\n", family);
+		break;
+	}
+}
+
+uint16_t esp_tos_tclass_get(uint16_t family)
+{
+	switch (family) {
+	case AF_INET:
+		return esp_tos;
+	case AF_INET6:
+		return esp_tclass;
+	}
+
+	ESP_INFO("Failed to get tos/tclass value for unknown family: %u\n", family);
+	return UINT16_MAX;
 }

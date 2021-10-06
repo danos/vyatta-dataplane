@@ -1,0 +1,25 @@
+// Copyright (c) 2021, AT&T Intellectual Property.  All rights reserved.
+//
+// SPDX-License-Identifier: LGPL-2.1-only
+
+// Assignement of forwarding class to locally originated control traffic protobuf definitions
+
+syntax="proto2";
+
+option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/ForwardingClassConfig";
+
+message ForwardingClassConfig {
+	enum AddressFamily {
+	     IPV4 = 1;
+	     IPV6 = 2;
+	}
+	enum ProtocolType {
+	     NONE = 0;
+	     ICMP = 1;
+	     ND = 2;
+	     ESP = 3;
+	}
+	optional AddressFamily af = 1;
+	optional ProtocolType pt = 2;
+	optional int32 tos_traffic_class = 3;
+}

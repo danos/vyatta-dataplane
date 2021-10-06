@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -2121,6 +2121,54 @@ static void rt6_summarize(struct lpm6_walk_params *params,
 	++rt_used[params->pr_len];
 }
 
+static void rt6_nexthop_count(struct lpm6_walk_params *params,
+			      struct pd_obj_state_and_flags *pd_state __rte_unused,
+			      void *arg)
+{
+	struct nexthop_summary_ctx *rt_ctx = arg;
+	const struct next_hop_list *nextl =
+		rcu_dereference(nh6_tbl.entry[params->next_hop]);
+
+	nexthop_summary_count_cb(nextl, rt_ctx);
+}
+
+static int rt6_show_nexthop_stats(struct route6_head *rt6_head,
+				  json_writer_t *json, uint32_t id,
+				  const struct ip_addr *addr)
+{
+	char b1[INET6_ADDRSTRLEN];
+	struct nexthop_summary_ctx rt_ctx;
+	struct lpm6 *lpm6 = rt6_get_lpm(rt6_head, id);
+	const char *nhop;
+
+	if (lpm6 == NULL) {
+		RTE_LOG(DEBUG, ROUTE6, "Unknown route table id %d\n", id);
+		return 0;
+	}
+
+	rt_ctx.count = 0;
+	rt_ctx.addr = addr;
+
+	lpm6_walk_all_safe(lpm6, rt6_nexthop_count, &rt_ctx);
+	jsonw_start_object(json);
+
+	if (IN6_IS_ADDR_V4MAPPED(&rt_ctx.addr->address.ip_v6)) {
+		in_addr_t v4nhop;
+
+		v4nhop = V4MAPPED_IPV6_TO_IPV4(rt_ctx.addr->address.ip_v6);
+		nhop = inet_ntop(AF_INET, &v4nhop, b1, sizeof(b1));
+	} else {
+		nhop = inet_ntop(AF_INET6, &rt_ctx.addr->address.ip_v6,
+				 b1, sizeof(b1));
+	}
+
+	jsonw_string_field(json, "gateway", nhop);
+	jsonw_uint_field(json, "count", rt_ctx.count);
+	jsonw_end_object(json);
+
+	return 0;
+}
+
 static int rt6_stats(struct route6_head *rt6_head, json_writer_t *json,
 		     uint32_t id)
 {
@@ -2332,6 +2380,33 @@ int cmd_route6(FILE *f, int argc, char **argv)
 		jsonw_start_object(json);
 		err = rt6_stats(&vrf->v_rt6_head, json, tblid);
 		jsonw_end_object(json);
+	} else if (strcmp(argv[1], "nexthop") == 0) {
+		struct in6_addr in6;
+		struct in_addr in;
+		struct ip_addr addr = {
+			.type = AF_UNSPEC,
+			.address.ip_v4.s_addr = 0,
+		};
+
+		if (argc == 2) {
+			fprintf(f, "missing address\n");
+			goto error;
+		}
+		if (inet_pton(AF_INET, argv[2], &in) == 1) {
+			V4MAPPED_IPV4_TO_IPV6(&in6, in);
+			if (!addr_store(&addr, AF_INET6, &in6))
+				goto error;
+		} else if (inet_pton(AF_INET6, argv[2], &in6) == 1) {
+			if (!addr_store(&addr, AF_INET6, &in6))
+				goto error;
+		} else {
+			fprintf(f, "invalid address\n");
+			goto error;
+		}
+
+		jsonw_name(json, "route6_nexthop_stats");
+		err = rt6_show_nexthop_stats(&vrf->v_rt6_head, json,
+					     tblid, &addr);
 	} else if (strcmp(argv[1], "lookup") == 0) {
 		struct in6_addr in6;
 		long plen = -1;
@@ -2402,6 +2477,7 @@ int cmd_route6(FILE *f, int argc, char **argv)
 			"Usage: route6 [vrf_id ID] [table N] [show]\n"
 			"       route6 [vrf_id ID] [table N] all\n"
 			"       route6 [vrf_id ID] [table N] summary\n"
+			"       route6 [vrf_id ID] [table N] nexthop ADDR\n"
 			"       route6 [vrf_id ID] [table N] lookup ADDR <PREFIXLENGTH>\n"
 			"       route6 [vrf_id ID] [table N] platform [cnt]\n");
 	}

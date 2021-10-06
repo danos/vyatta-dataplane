@@ -37,7 +37,7 @@ pipeline {
     environment {
         BITBUCKET_REPO = 'vyatta-dataplane'
         OBS_INSTANCE = 'build-release'
-        OBS_TARGET_PROJECT = 'DANOS:Jarrow'
+        OBS_TARGET_PROJECT = 'DANOS:Unstable'
         OBS_TARGET_REPO = 'standard'
         OBS_TARGET_ARCH = 'x86_64'
         // Replace : with _ in project name so mountable paths can be used.
@@ -94,7 +94,7 @@ pipeline {
                                 text: """\
                                     USR=\"${OBS_USR}\"
                                     PRJ=\"${BITBUCKET_REPO}-pr-${CHANGE_ID}\"
-                                    BASE=\"Vyatta:Jarrow\"
+                                    BASE=\"Vyatta:Unstable\"
                                     PR=danos:${BITBUCKET_REPO}:${CHANGE_ID}
                                 """.stripIndent()
                             sh "scripts/obs-check-build"

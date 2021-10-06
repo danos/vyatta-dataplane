@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -160,6 +160,27 @@ int cmd_route(FILE *f, int argc, char **argv)
 		jsonw_start_object(json);
 		err = rt_stats(&vrf->v_rt4_head, json, tblid);
 		jsonw_end_object(json);
+	} else if (strcmp(argv[1], "nexthop") == 0) {
+		struct in_addr in;
+		struct ip_addr addr = {
+			.type = AF_UNSPEC,
+			.address.ip_v4.s_addr = 0,
+		};
+
+		if (argc == 2) {
+			fprintf(f, "missing address\n");
+			goto error;
+		}
+		if (inet_aton(argv[2], &in) == 0) {
+			fprintf(f, "invalid address\n");
+			goto error;
+		}
+		if (!addr_store(&addr, AF_INET, &in))
+			goto error;
+
+		jsonw_name(json, "route_nexthop_stats");
+		err = rt_show_nexthop_stats(&vrf->v_rt4_head, json, tblid,
+					    &addr);
 	} else if (strcmp(argv[1], "lookup") == 0) {
 		struct in_addr in;
 		long plen = -1;
@@ -230,6 +251,7 @@ int cmd_route(FILE *f, int argc, char **argv)
 		    "Usage: route [vrf_id ID] [table N] [show]\n"
 		    "       route [vrf_id ID] [table N] all\n"
 		    "       route [vrf_id ID] [table N] summary\n"
+		    "       route [vrf_id ID] [table N] nexthop ADDR\n"
 		    "       route [vrf_id ID] [table N] lookup ADDR [PREFIXLENGTH]\n"
 		    "       route [vrf_id ID] [table N] platform [cnt]\n");
 	}

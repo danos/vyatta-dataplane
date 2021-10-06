@@ -7,6 +7,7 @@ usr/include/vyatta-dataplane/dpi.h
 usr/include/vyatta-dataplane/dp_test/dp_test_cmd_check.h
 usr/include/vyatta-dataplane/dp_test/dp_test_crypto_lib.h
 usr/include/vyatta-dataplane/dp_test/dp_test_crypto_utils.h
+usr/include/vyatta-dataplane/dp_test/dp_test_gre.h
 usr/include/vyatta-dataplane/dp_test/dp_test_lib.h
 usr/include/vyatta-dataplane/dp_test/dp_test_lib_intf.h
 usr/include/vyatta-dataplane/dp_test/dp_test_firewall_lib.h
@@ -23,6 +24,7 @@ usr/include/vyatta-dataplane/interface.h
 usr/include/vyatta-dataplane/ip.h
 usr/include/vyatta-dataplane/ip_checksum.h
 usr/include/vyatta-dataplane/ip_forward.h
+usr/include/vyatta-dataplane/ip_nud_ulr.h
 usr/include/vyatta-dataplane/json_writer.h
 usr/include/vyatta-dataplane/lcore_sched.h
 usr/include/vyatta-dataplane/pipeline.h

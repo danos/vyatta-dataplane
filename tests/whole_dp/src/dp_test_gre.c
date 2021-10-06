@@ -31,7 +31,7 @@
 #include "dp_test_lib_intf_internal.h"
 #include "dp_test_pktmbuf_lib_internal.h"
 #include "dp_test_lib_exp.h"
-#include "dp_test_gre.h"
+#include "dp_test/dp_test_gre.h"
 
 
 /*
@@ -898,7 +898,7 @@ DP_START_TEST(gre_encap, no_route)
 } DP_END_TEST;
 
 
-static struct rte_mbuf *
+struct rte_mbuf *
 dp_test_gre_build_encapped_pak(const struct iphdr *payload_ip,
 			       struct iphdr **outer_ip,
 			       struct iphdr **inner_ip)
@@ -919,7 +919,7 @@ dp_test_gre_build_encapped_pak(const struct iphdr *payload_ip,
 DP_DECL_TEST_CASE(gre_suite, gre_decap, NULL, NULL);
 
 
-static struct dp_test_expected *gre_test_build_expected_ecn_pak(
+struct dp_test_expected *dp_test_gre_build_expected_ecn_pak(
 	struct rte_mbuf **exp_mbuf_p)
 {
 	struct dp_test_expected *exp;
@@ -980,7 +980,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	 */
 
 	/* loop through all inners for outer 00 */
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_assert_internal(outer_ip != NULL);
 	dp_test_assert_internal(inner_ip != NULL);
@@ -993,7 +993,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_NOT_ECT);
@@ -1004,7 +1004,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_NOT_ECT);
@@ -1015,7 +1015,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_NOT_ECT);
@@ -1028,7 +1028,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 
 
 	/* loop through all inners for outer 01 */
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT1);
@@ -1039,7 +1039,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT1);
@@ -1050,7 +1050,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT1);
@@ -1061,7 +1061,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT1);
@@ -1073,7 +1073,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 
 
 	/* loop through all inners for outer 02 */
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT0);
@@ -1084,7 +1084,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT0);
@@ -1095,7 +1095,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT0);
@@ -1106,7 +1106,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_ECT0);
@@ -1117,7 +1117,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 	/* loop through all inners for outer 03 */
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_CE);
@@ -1128,7 +1128,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_CE);
@@ -1140,7 +1140,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_CE);
@@ -1151,7 +1151,7 @@ DP_START_TEST(gre_decap, ecn_decap)
 	dp_test_pak_receive(m, "dp2T2", exp);
 
 
-	exp = gre_test_build_expected_ecn_pak(&e);
+	exp = dp_test_gre_build_expected_ecn_pak(&e);
 	m = dp_test_gre_build_encapped_pak(iphdr(e), &outer_ip, &inner_ip);
 	dp_test_set_pak_ip_field(outer_ip,
 				 DP_TEST_SET_IP_ECN, IPTOS_ECN_CE);

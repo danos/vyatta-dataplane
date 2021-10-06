@@ -16,7 +16,6 @@
 #include <rte_common.h>
 #include <rte_cycles.h>
 #include <rte_ether.h>
-#include <rte_jhash.h>
 #include <rte_lcore.h>
 #include <rte_log.h>
 #include <rte_mbuf.h>
@@ -31,6 +30,7 @@
 #include "compiler.h"
 #include "dp_event.h"
 #include "dp_session.h"
+#include "dp_xor_hash.h"
 #include "if_var.h"
 #include "main.h"
 #include "netinet6/in6.h"
@@ -581,10 +581,21 @@ static int sentry_match(struct cds_lfht_node *node, const void *key)
 static ALWAYS_INLINE
 unsigned long sentry_hash(const struct sentry_packet *sp)
 {
-	unsigned long hash;
+	if (sp->sp_len == SENTRY_LEN_IPV4)
+		return dp_xor_4words(sp->sp_protocol, sp->sp_ifindex,
+				     sp->sp_addrids[0], sp->sp_addrids[1],
+				     sp->sp_addrids[2]);
 
-	hash = rte_jhash_1word(sp->sp_protocol, sp->sp_ifindex);
-	return rte_jhash_32b(sp->sp_addrids, sp->sp_len, hash);
+	/* sp->sp_len == SENTRY_LEN_IPV6 */
+	uint32_t src_addr_hash, dst_addr_hash;
+
+	src_addr_hash = dp_xor_3words(sp->sp_addrids[1], sp->sp_addrids[2],
+				      sp->sp_addrids[3], sp->sp_addrids[4]);
+	dst_addr_hash = dp_xor_3words(sp->sp_addrids[5], sp->sp_addrids[6],
+				      sp->sp_addrids[7], sp->sp_addrids[8]);
+	return dp_xor_4words(sp->sp_protocol, sp->sp_ifindex,
+				     sp->sp_addrids[0], src_addr_hash,
+				     dst_addr_hash);
 }
 
 /*
@@ -1302,6 +1313,7 @@ void session_set_protocol_state_timeout(struct session *s, uint8_t state,
 	s->se_timeout = timeout;
 	s->se_protocol_state = state;
 	s->se_gen_state = gen_state;
+	s->se_etime = get_dp_uptime() + se_timeout(s);
 }
 
 /* Set the custom timeout */

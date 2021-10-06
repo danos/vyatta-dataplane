@@ -125,6 +125,7 @@ struct lltable {
 #define LLE_FWDING		0x0020  /* forwarding is aware of this entry */
 #define LLE_CREATED_IN_HW	0x0040  /* Sourced in the hardware */
 #define LLE_HW_UPD_PENDING	0x0080  /* Incompleted in the hardware */
+#define LLE_ULR	        0x0100  /* Upper layer reachability confirmation received */
 
 /*
  * flags indicating synchronization

@@ -168,10 +168,6 @@ int ipv6_originate_filter_flags(struct ifnet *out_ifp, struct rte_mbuf *m,
 	return 0;
 }
 
-static int ipv6_originate_filter(struct ifnet *ifp, struct rte_mbuf *m)
-{
-	return ipv6_originate_filter_flags(ifp, m, NPF_FLAG_FROM_US);
-}
 /*
  * Deliver local destined packet to slow path
  */
@@ -807,13 +803,6 @@ ip6_lookup_and_originate(struct rte_mbuf *m, struct ifnet *in_ifp)
 			return;
 		}
 	}
-
-	/*
-	 * This hook shall cover: ESPv6, GREv6, LTP2v6 outer header remark
-	 * ICMPv6 error, redirect
-	 */
-	if (ipv6_originate_filter(dp_nh6_get_ifp(nxt), m))
-		return;
 
 	enum ip6_features ip6_feat = IP6_FEA_ORIGINATE;
 	ip6_switch(m, in_ifp, ip6, nxt, ip6_feat, NPF_FLAG_CACHE_EMPTY);

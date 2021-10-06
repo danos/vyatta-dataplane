@@ -118,6 +118,14 @@ ipv6_encap_process_internal(struct pl_packet *pkt, enum pl_mode mode)
 		return IPV6_ENCAP_FEAT_CONSUME;
 
 	struct next_hop *nh = pkt->nxt.v6;
+	/*
+	 * Incase of ND packets, we dont want to resolve Nexthop,
+	 * Just run the features
+	 */
+	if (nh->flags & RTF_DONT_RESOLVE_NH)
+		return IPV6_ENCAP_L2_OUT;
+
+
 	struct ifnet *in_ifp = pkt->in_ifp;
 	struct ifnet *out_ifp = pkt->out_ifp;
 	struct rte_mbuf *mbuf = pkt->mbuf;

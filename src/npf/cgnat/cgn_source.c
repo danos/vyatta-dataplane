@@ -14,11 +14,11 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <linux/if.h>
-#include <dpdk/rte_jhash.h>
 #include <urcu/list.h>
 #include <rte_log.h>
 
 #include "compiler.h"
+#include "dp_xor_hash.h"
 #include "if_var.h"
 #include "urcu.h"
 #include "util.h"
@@ -505,7 +505,7 @@ static void cgn_source_destroy(struct cgn_source *src)
 static ulong
 cgn_source_hash(uint32_t addr, vrfid_t vrfid)
 {
-	return rte_jhash_1word(addr, vrfid);
+	return dp_xor_1word(addr, vrfid);
 }
 
 /*

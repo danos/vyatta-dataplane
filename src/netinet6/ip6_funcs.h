@@ -32,6 +32,13 @@
 #define ICMP6_PAYLOAD_SIZE (1024)
 
 #define V4MAPPED_IPV6_TO_IPV4(A)	((A).s6_addr32[3])
+#define V4MAPPED_IPV4_TO_IPV6(A, B)			\
+{							\
+	(A)->s6_addr32[0] = 0x0;			\
+	(A)->s6_addr32[1] = 0x0;			\
+	(A)->s6_addr32[2] = htonl(0xffff);		\
+	(A)->s6_addr32[3] = ((B).s_addr);		\
+}
 
 enum ip6_features {
 	IP6_FEA_REASSEMBLE	= (1u << 0),
@@ -163,4 +170,6 @@ struct icmp_ratelimit_state *icmp6_get_rl_state(void);
 uint8_t icmp6_get_rl_state_entries(void);
 bool icmp6_msg_type_to_icmp_type(uint8_t msgtype, uint8_t *icmptype);
 
+void icmp6_error_tclass_set(uint8_t tclass);
+uint8_t icmp6_error_tclass_get(void);
 #endif /* IP6_FUNCS_H */

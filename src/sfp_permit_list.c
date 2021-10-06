@@ -23,7 +23,6 @@
 #include "protobuf/SFPMonitor.pb-c.h"
 #include "util.h"
 
-#include "sfp_permit_list.h"
 #include "transceiver.h"
 #include "if/dpdk-eth/dpdk_eth_if.h"
 
@@ -132,6 +131,8 @@ static void sfp_validate_sfp_against_pl(struct sfp_intf_record *sfp);
 struct sfp_permit_config sfp_permit_cfg;
 
 struct cds_lfht *sfp_ports_tbl;
+
+static bool sfp_permit_mismatch_cfg_present;
 
 static inline uint32_t sfpd_record_hash(struct sfp_intf_record *rec)
 {
@@ -490,21 +491,28 @@ sfp_permit_mismatch_cfg(const SfpPermitConfig__MisMatchConfig *mismatch)
 		"SFP-PL: mismatch action %s\n",
 		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET ? "SET" : "DELETE");
 
-	if (mismatch->logging == SFP_PERMIT_CONFIG__LOGGING__ENABLE &&
-		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET)
-		sfp_mismatch_cfg.logging_enabled = true;
-	else
-		sfp_mismatch_cfg.logging_enabled = false;
+	sfp_permit_mismatch_cfg_present =
+		mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET ? true : false;
 
-	if (mismatch->mode == SFP_PERMIT_CONFIG__MODE__ENFORCE) {
-		sfp_permit_cfg.effective_enforcement_time =
-			mismatch->effective_enforcement_time;
-		DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
-			 "SFP-PL: Setting effective enforcement time to %us\n",
-			 mismatch->effective_enforcement_time);
-	} else {
-		sfp_permit_cfg.effective_enforcement_time = 0;
-		sfp_clear_all_holddown();
+	if (mismatch->has_logging) {
+		if (mismatch->logging == SFP_PERMIT_CONFIG__LOGGING__ENABLE &&
+			mismatch->action == SFP_PERMIT_CONFIG__ACTION__SET)
+			sfp_mismatch_cfg.logging_enabled = true;
+		else
+			sfp_mismatch_cfg.logging_enabled = false;
+	}
+
+	if (mismatch->has_mode) {
+		if (mismatch->mode == SFP_PERMIT_CONFIG__MODE__ENFORCE) {
+			sfp_permit_cfg.effective_enforcement_time =
+				mismatch->effective_enforcement_time;
+			DP_DEBUG(SFP_LIST, DEBUG, DATAPLANE,
+				"SFP-PL: Setting effective enforcement time to %us\n",
+				mismatch->effective_enforcement_time);
+		} else {
+			sfp_permit_cfg.effective_enforcement_time = 0;
+			sfp_clear_all_holddown();
+		}
 	}
 
 	sfp_scan_for_holddown();
@@ -1044,7 +1052,7 @@ sfp_jsonw_device(json_writer_t *wr, struct sfp_intf_record *sfp)
 	jsonw_end_object(wr);
 }
 
-static bool sfp_permit_config_present(void)
+static bool sfp_permit_config_absent(void)
 {
 	bool permit_list_empty;
 
@@ -1053,7 +1061,7 @@ static bool sfp_permit_config_present(void)
 	else
 		permit_list_empty = true;
 
-	return sfp_permit_enforcement_enabled() && permit_list_empty;
+	return !sfp_permit_mismatch_cfg_present && permit_list_empty;
 }
 
 static void sfp_permit_dump_devices(json_writer_t *wr)
@@ -1061,7 +1069,7 @@ static void sfp_permit_dump_devices(json_writer_t *wr)
 	struct cds_lfht_iter iter;
 	struct sfp_intf_record *sfp;
 
-	if (sfp_permit_config_present())
+	if (sfp_permit_config_absent())
 		return;
 
 	jsonw_name(wr, "sfp-permit-list-devices");

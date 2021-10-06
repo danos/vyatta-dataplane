@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, AT&T Intellectual Property. All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2015-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -1934,6 +1934,18 @@ dp_test_create_icmp_ipv6_pak(const char *saddr, const char *daddr,
 	}
 	if (icmp6p)
 		*icmp6p = icmp6;
+
+	switch (icmp_type) {
+	case ICMP6_TIME_EXCEEDED:
+	case ICMP6_PACKET_TOO_BIG:
+	case ICMP6_DST_UNREACH:
+	case ICMP6_PARAM_PROB:
+		/* Set DSCP value of ICMPv6 error packets to CS6 */
+		dp_test_set_pak_ip6_field(ip6, DP_TEST_SET_TOS, IPTOS_CLASS_CS6);
+		break;
+	default:
+		break;
+	}
 
 	return pak;
 }

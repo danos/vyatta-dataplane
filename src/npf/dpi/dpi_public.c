@@ -110,3 +110,10 @@ dp_dpi_get_app_id(struct rte_mbuf *mbuf)
 	/* Temporary solution until netflow can provide engine IDs */
 	return dpi_flow_get_app_id(dpi_global_engine(), dpi_flow);
 }
+
+/* Return the L7 DPI application ID which means DPI is not available. */
+uint32_t
+dp_dpi_not_available_app_id(void)
+{
+	return DPI_APP_NA;
+}

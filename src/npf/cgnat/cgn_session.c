@@ -29,11 +29,11 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/in.h>
 #include <rte_atomic.h>
-#include <rte_jhash.h>
 #include <rte_mbuf.h>
 #include <rte_timer.h>
 
 #include "compiler.h"
+#include "dp_xor_hash.h"
 #include "if_var.h"
 #include "in_cksum.h"
 #include "lcore_sched.h"
@@ -1172,12 +1172,8 @@ static ALWAYS_INLINE ulong cgn_hash(const struct cgn_3tuple_key *key)
 	static_assert(sizeof(*key) == 12,
 		      "cgn 3 tuple key is wrong size");
 
-	/*
-	 * A special optimized version of jhash that handles 1 or more of
-	 * uint32_ts.
-	 */
-	return rte_jhash_32b((const uint32_t *)key,
-			     sizeof(*key) / sizeof(uint32_t), 0);
+	return dp_xor_array32((const uint32_t *)key,
+			      sizeof(*key) / sizeof(uint32_t), 0);
 }
 
 /*

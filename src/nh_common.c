@@ -1229,6 +1229,28 @@ static void next_hop_list_add_hardware_resolution(struct next_hop_list *nhl)
 	}
 }
 
+void nexthop_summary_count_cb(const struct next_hop_list *nextl,
+			      struct nexthop_summary_ctx *rt_ctx)
+{
+	const struct next_hop *nh;
+	unsigned int i;
+
+	if (unlikely(!nextl))
+		return;
+
+	nh = rcu_dereference(nextl->siblings);
+	for (i = 0; i < nextl->nsiblings; i++) {
+		const struct next_hop *next = nh + i;
+
+		if (!nh_is_gw(next))
+			continue;
+		if (!addr_same(&next->gateway, rt_ctx->addr))
+			continue;
+		rt_ctx->count++;
+		break;
+	}
+}
+
 /* Lookup (or create) nexthop based on hop information */
 int nexthop_new(int family, const struct next_hop *nh, uint16_t size,
 		uint8_t proto, enum fal_next_hop_group_use use, uint32_t *slot)

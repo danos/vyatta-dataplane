@@ -10,9 +10,9 @@
 #include <time.h>
 #include <netinet/in.h>
 #include <linux/if.h>
-#include <rte_jhash.h>
 
 #include "compiler.h"
+#include "dp_xor_hash.h"
 #include "if_var.h"
 #include "util.h"
 #include "soft_ticks.h"
@@ -32,7 +32,7 @@
 
 /*
  * The ALG pinhole table is used to match secondary (data) flows for ALG
- * protocols (SIP, FTP, and PPTP).
+ * protocols (SIP and PPTP).
  *
  * The pinhole table entries are typically short-lived (10-120 secs).  These
  * are created as a result of inspecting the payloads of packets identified by
@@ -49,9 +49,8 @@
  * The pinhole table entries contain 6-tuples (vrfid, protocol, source
  * address and port, destination address and port)
  *
- * However in some circumstances (e.g. ftp passive) we do not know the source
- * port of the data flow so a 5-tuple entry is created that will match any
- * source port.
+ * However in some circumstances we do not know the source port of the data
+ * flow so a 5-tuple entry is created that will match any source port.
  *
  * These entries are normally expired whenever a secondary flow is detected
  * (and session created), since they are no longer required.
@@ -93,7 +92,7 @@ struct alg_pinhole {
 	 */
 	uint32_t		ap_id;
 
-	/* ALG ID.  SIP, PPTP, or FTP */
+	/* ALG ID.  SIP or PPTP */
 	enum cgn_alg_id		ap_alg_id;
 
 	/*
@@ -288,12 +287,8 @@ static void alg_pinhole_put(struct alg_pinhole *ap)
 __attribute__((nonnull))
 static ulong alg_pinhole_hash(const struct alg_pinhole_key *key)
 {
-	/*
-	 * A special optimized version of jhash that handles 1 or more of
-	 * uint32_ts.
-	 */
-	return rte_jhash_32b((const uint32_t *)key,
-			     sizeof(*key) / sizeof(uint32_t), 0);
+	return dp_xor_array32((const uint32_t *)key,
+			      sizeof(*key) / sizeof(uint32_t), 0);
 }
 
 /*
@@ -630,9 +625,6 @@ int cgn_alg_pinhole_lookup(struct cgn_packet *cpk, struct cgn_map *cmi __unused,
 	 * Transfers cmi reservation from pinhole to the cmi parameter.
 	 */
 	switch (ap->ap_alg_id) {
-	case CGN_ALG_FTP:
-		break;
-
 	case CGN_ALG_PPTP:
 		rc = cgn_alg_pptp_pinhole_found(ap, cmi);
 		break;
