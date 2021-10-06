@@ -584,11 +584,11 @@ static void qos_hw_egressm_attrs(struct qos_mark_map *map,
 {
 	int i;
 	int max_entries = ((map->type == EGRESS_DSCP) ||
-				(map->type = EGRESS_DSCPGRP_DSCP)) ?
+			   (map->type == EGRESS_DSCPGRP_DSCP)) ?
 				FAL_QOS_MAP_DSCP_VALUES :
 				FAL_QOS_MAP_DESIGNATION_VALUES;
 	uint64_t mask = ((map->type == EGRESS_DSCP) ||
-				(map->type = EGRESS_DSCPGRP_DSCP)) ?
+			 (map->type == EGRESS_DSCPGRP_DSCP)) ?
 				map->dscp_used :
 				map->des_used;
 
