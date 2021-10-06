@@ -31,5 +31,8 @@ void lladdr_flush_all(enum cont_src_en cont_src);
 void ll_addr_set(struct llentry *lle, const struct rte_ether_addr *eth);
 /* Call this to link to routes when an lle transitions to VALID */
 void llentry_routing_install(struct llentry *lle);
+void kernel_mark_neigh_reachable(const struct sockaddr *addr, uint32_t ifindex);
+void kernel_neigh_netlink_sock_init(void);
+void kernel_neigh_netlink_sock_close(void);
 
 #endif /* IF_ETHER_H */

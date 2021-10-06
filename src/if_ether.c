@@ -33,6 +33,7 @@
  */
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <in6.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -46,6 +47,7 @@
 #include <rte_log.h>
 #include <rte_mbuf.h>
 #include <rte_spinlock.h>
+#include <libmnl/libmnl.h>
 
 #include "arp.h"
 #include "compat.h"
@@ -65,6 +67,10 @@
 #include "vplane_debug.h"
 #include "vplane_log.h"
 
+/*
+ * Netlink socket to notify kernel about neighbor reachability
+ */
+static struct mnl_socket *kernel_nl;
 
 /* Debugging messages */
 #define LLADDR_DEBUG(format, args...)	\
@@ -229,6 +235,93 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 		la->ll_expire += rte_get_timer_hz() * ARP_CFG(arp_aging_time);
 }
 
+void kernel_neigh_netlink_sock_close(void)
+{
+	int rv;
+
+	rv = mnl_socket_close(kernel_nl);
+	if (rv < 0)
+		RTE_LOG(ERR, DATAPLANE, "Failed to close netlink socket - %s\n",
+			strerror(errno));
+
+	kernel_nl = NULL;
+}
+
+void kernel_neigh_netlink_sock_init(void)
+{
+	int rv;
+
+	kernel_nl = mnl_socket_open(NETLINK_ROUTE);
+	if (!kernel_nl) {
+		RTE_LOG(ERR, DATAPLANE, "Failed to open netlink socket - %s\n",
+			strerror(errno));
+		return;
+	}
+
+	rv = mnl_socket_bind(kernel_nl, 0, MNL_SOCKET_AUTOPID);
+	if (rv < 0) {
+		RTE_LOG(ERR, DATAPLANE, "Failed to bind netlink socket - %s\n",
+			strerror(errno));
+		kernel_neigh_netlink_sock_close();
+	}
+}
+
+/*
+ * Notify kernel that addr is REACHABLE.
+ */
+void kernel_mark_neigh_reachable(const struct sockaddr *addr, uint32_t ifindex)
+{
+	int rv;
+	static unsigned int myseq;
+	char b[INET6_ADDRSTRLEN];
+	const char *a;
+	struct {
+		struct nlmsghdr	n;
+		struct ndmsg	ndm;
+		char		buf[256];
+	} req = {
+		.n.nlmsg_len = NLMSG_LENGTH(sizeof(struct ndmsg)),
+		.n.nlmsg_flags = NLM_F_REQUEST | NLM_F_REPLACE,
+		.n.nlmsg_type = RTM_NEWNEIGH,
+		.n.nlmsg_seq = ++myseq,
+		.ndm.ndm_family = addr->sa_family,
+		.ndm.ndm_state = NUD_REACHABLE,
+		.ndm.ndm_ifindex = ifindex
+	};
+
+	switch (addr->sa_family) {
+	case AF_INET:
+		a = inet_ntop(AF_INET, &((struct sockaddr_in *)(addr))->sin_addr, b, sizeof(b));
+		mnl_attr_put(&req.n, IFLA_ADDRESS, sizeof(struct in_addr),
+			     &((struct sockaddr_in *)(addr))->sin_addr);
+		break;
+
+	case AF_INET6:
+		a = inet_ntop(AF_INET6, &((struct sockaddr_in6 *)(addr))->sin6_addr, b, sizeof(b));
+		mnl_attr_put(&req.n, IFLA_ADDRESS, sizeof(struct in6_addr),
+			     &((struct sockaddr_in6 *)(addr))->sin6_addr);
+		break;
+
+	default:
+		RTE_LOG(ERR, DATAPLANE, "Cannot update reachability - Invalid AF %d\n",
+			addr->sa_family);
+		return;
+	}
+
+	if (!kernel_nl) {
+		RTE_LOG(ERR, DATAPLANE, "Cannot update reachability for %s - no netlink sock\n", a);
+		return;
+	}
+
+	rv = mnl_socket_sendto(kernel_nl, &req.n, req.n.nlmsg_len);
+	if (rv < 0)
+		RTE_LOG(ERR, DATAPLANE, "Failed to send neigh REACHABLE to kernel for %s - %s\n",
+			a, strerror(errno));
+	else
+		DP_DEBUG(LINK, DEBUG, DATAPLANE,
+			 "Synced neigh state REACHABLE to kernel for %s\n", a);
+}
+
 static int
 lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 	   const struct rte_ether_addr *mac,
@@ -249,7 +342,8 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 		return -1;
 	}
 
-	if (!(state & (NUD_PERMANENT | NUD_NOARP | NUD_REACHABLE | NUD_FAILED)))
+	if (!(state &
+	      (NUD_PERMANENT | NUD_STALE | NUD_NOARP | NUD_REACHABLE | NUD_FAILED)))
 		return 0;
 
 	/* Do not create an entry as a result of a fail notification */
@@ -261,7 +355,10 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 
 	lle = in_lltable_lookup(ifp, flags, satosin(sock)->sin_addr.s_addr);
 
-	if (state & NUD_FAILED) {
+	if (state & NUD_STALE) {
+		if (llentry_has_been_used(lle))
+			kernel_mark_neigh_reachable(sock, ifp->if_index);
+	} else if (state & NUD_FAILED) {
 
 		/* Ignore fail notification unless entry exists */
 		if (!lle)

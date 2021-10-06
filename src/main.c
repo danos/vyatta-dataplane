@@ -106,6 +106,7 @@
 #include "if/dpdk-eth/dpdk_eth_linkwatch.h"
 #include "if/dpdk-eth/vhost.h"
 #include "if_llatbl.h"
+#include "if_ether.h"
 #include "if_var.h"
 #include "ip_funcs.h"
 #include "ip_ttl.h"
@@ -3714,9 +3715,11 @@ main(int argc, char **argv)
 			"naming of rcu thread failed\n");
 
 	icmp_ratelimit_init();
+	kernel_neigh_netlink_sock_init();
 
 	main_loop();
 
+	kernel_neigh_netlink_sock_close();
 	crypto_pmd_remove_all();
 	stop_all_ports();
 
