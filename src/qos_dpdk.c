@@ -281,7 +281,7 @@ int qos_dpdk_port(struct ifnet *ifp,
 	if (qinfo) {
 		RTE_LOG(INFO, DATAPLANE, "Removing existing QoS SW config from %s\n",
 			ifp->if_name);
-		qos_dpdk_disable(ifp, qinfo);
+		qos_sched_disable(ifp, qinfo);
 	}
 
 	qinfo = qos_sched_new(ifp, subports, pipes, profiles, overhead);

@@ -3748,6 +3748,17 @@ static int cmd_qos_params(struct ifnet *ifp, int argc, char **argv)
 	return 0;
 }
 
+int qos_sched_disable(struct ifnet *ifp, struct sched_info *qinfo)
+{
+	DP_DEBUG(QOS, DEBUG, DATAPLANE, "QoS disabled on %s\n", ifp->if_name);
+
+	SLIST_REMOVE(&qos_qinfos.qinfo_head, qinfo, sched_info, list);
+
+	QOS_RM_GLOBAL_MAP();
+
+	return QOS_DISABLE(qinfo)(ifp, qinfo);
+}
+
 static int cmd_qos_disable(struct ifnet *ifp,
 			   int argc __unused, char **argv __unused)
 {
@@ -3761,13 +3772,7 @@ static int cmd_qos_disable(struct ifnet *ifp,
 	 *
 	 * "disable"
 	 */
-	DP_DEBUG(QOS, DEBUG, DATAPLANE,	"QoS disabled on %s\n", ifp->if_name);
-
-	SLIST_REMOVE(&qos_qinfos.qinfo_head, qinfo, sched_info, list);
-
-	QOS_RM_GLOBAL_MAP();
-
-	return QOS_DISABLE(qinfo)(ifp, qinfo);
+	return qos_sched_disable(ifp, qinfo);
 }
 
 static int cmd_qos_enable(struct ifnet *ifp,
