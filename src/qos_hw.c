@@ -1316,7 +1316,7 @@ int qos_hw_port(struct ifnet *ifp, unsigned int subports, unsigned int pipes,
 	if (qinfo) {
 		RTE_LOG(INFO, DATAPLANE, "Removing existing QoS HW config from %s\n",
 			ifp->if_name);
-		qos_hw_disable(ifp, qinfo);
+		qos_sched_disable(ifp, qinfo);
 	}
 
 	qinfo = qos_sched_new(ifp, subports, pipes, profiles, overhead);

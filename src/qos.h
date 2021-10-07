@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2013-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -593,6 +593,7 @@ struct sched_info *qos_sched_new(struct ifnet *ifp, unsigned int subports,
 void qos_sched_free(struct sched_info *qinfo);
 void qos_sched_free_rcu(struct rcu_head *head);
 uint8_t qos_get_prio_lp_des(void);
+int qos_sched_disable(struct ifnet *ifp, struct sched_info *qinfo);
 
 int qos_hw_show_port(struct ifnet *ifp, void *arg);
 void qos_hw_dump_map(json_writer_t *wr, const struct sched_info *qinfo,
