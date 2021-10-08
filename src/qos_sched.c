@@ -2451,12 +2451,7 @@ static int cmd_qos_clear(FILE *f, int argc, char **argv)
 		char vif_zero[] = "0";
 		struct ifnet *ifp;
 
-		/* Initial interface name check */
-		ifp = dp_ifnet_byifname(*++argv);
-		if (!ifp) {
-			fprintf(f, "Unknown interface: %s\n", *argv);
-			return -1;
-		}
+		++argv; /* skip "clear" */
 
 		snprintf(if_name, IFNAMSIZ, "%s", *argv);
 		dot = strchr(if_name, '.');
