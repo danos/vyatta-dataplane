@@ -136,7 +136,6 @@ struct lltable {
 #define LLE_FWDING		0x0020  /* forwarding is aware of this entry */
 #define LLE_CREATED_IN_HW	0x0040  /* Sourced in the hardware */
 #define LLE_HW_UPD_PENDING	0x0080  /* Incompleted in the hardware */
-#define LLE_ULR	        0x0100  /* Upper layer reachability confirmation received */
 
 /*
  * flags indicating synchronization
@@ -148,6 +147,11 @@ struct lltable {
  */
 #define	LLE_DELETE	0x0400	/* delete on a lookup - match LLE_IFADDR */
 #define	LLE_CREATE	0x0800	/* create on a lookup miss */
+
+/*
+ * flag for upper layer reachability confirmation
+ */
+#define	LLE_ULR		0x10000
 
 /*
  * mask of internal flags, i.e. that are set in the LLE, but shouldn't

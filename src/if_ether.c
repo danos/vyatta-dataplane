@@ -497,6 +497,38 @@ change_state(struct ifnet *ifp, struct llentry *lle, uint8_t state,
 		lle->ll_expire += rte_get_timer_hz() * expire;
 }
 
+/*
+ * Handles upper layer reachability updates
+ */
+void lladdr_ulr_update(struct ifnet *ifp, struct in_addr *addr, const bool confirmed)
+{
+	struct llentry *lle;
+
+	lle = in_lltable_lookup(ifp, 0, addr->s_addr);
+	if (!lle)
+		return;
+
+	if (lle->la_flags & (LLE_STATIC | LLE_DELETED))
+		return;
+
+	dp_rcu_read_lock();
+
+	if (confirmed) {
+		LLADDR_DEBUG("Add ULR flag - interface:%s, ip:%s, current state:%s\n",
+			     ifp->if_name, lladdr_ntop(lle), nd_state[lle->la_state]);
+		lle->la_flags |= LLE_ULR;
+		change_state(ifp, lle, LLINFO_REACHABLE, arp_cfg.arp_scavenge_time);
+
+	} else {
+		LLADDR_DEBUG("Remove ULR flag - interface:%s, ip:%s, current state:%s\n",
+			     ifp->if_name, lladdr_ntop(lle), nd_state[lle->la_state]);
+		lle->la_flags &= ~LLE_ULR;
+		change_state(ifp, lle, LLINFO_STALE, arp_cfg.arp_scavenge_time);
+	}
+
+	dp_rcu_read_unlock();
+}
+
 /* Send a new ll request probe for entry that has not responded.
  * Since this runs in main lcore, and that can't send directly,
  * it intrudes into shadow output ring to send the packet.
@@ -675,6 +707,9 @@ void lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 			llentry_routing_install(lle);
 
 		if (lle->la_flags & LLE_STATIC)
+			continue;
+
+		if (lle->la_flags & LLE_ULR)
 			continue;
 
 		/* retry incomplete entry */

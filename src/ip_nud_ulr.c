@@ -7,12 +7,15 @@
 
 #include "ip_nud_ulr.h"
 #include "nd6_nbr.h"
+#include "if_ether.h"
 
 /*
  *  Receives upper layer reachability notifications
  */
 void dp_ip_nud_ulr_notify(struct ifnet *ifp, struct ip_addr *dst, enum ulr_msg_t msg)
 {
-	if (dst->type == AF_INET6)
+	if (dst->type == AF_INET)
+		lladdr_ulr_update(ifp, &dst->address.ip_v4, msg == REACHABLITY_CONFIRMED);
+	else
 		nd6_lladdr_ulr_update(ifp, &dst->address.ip_v6, msg == REACHABLITY_CONFIRMED);
 }
