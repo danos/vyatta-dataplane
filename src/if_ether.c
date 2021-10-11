@@ -528,6 +528,52 @@ ll_probe(struct lltable *llt, struct llentry *la)
 		if_output(ifp, m, NULL, htons(ethhdr(m)->ether_type));
 }
 
+void resolve_timeout(struct lltable *llt, struct llentry *lle,
+		     uint64_t cur_time)
+{
+	if (++lle->la_asked <= arp_cfg.arp_retries) {
+		/*
+		 * Assume 1-second timeout
+		 */
+		lle->ll_expire = cur_time + rte_get_timer_hz();
+		ll_probe(llt, lle);
+
+		return;
+	}
+
+	struct ifnet *ifp = llt->llt_ifp;
+
+	ARPSTAT_INC(if_vrfid(ifp), timeouts);
+
+	LLADDR_DEBUG("retries exhausted for %s\n", lladdr_ntop(lle));
+	arp_entry_destroy(llt, lle);
+}
+
+void reachable_timeout(struct lltable *llt, struct llentry *lle)
+{
+	struct ifnet *ifp = llt->llt_ifp;
+
+	change_state(ifp, lle, LLINFO_STALE, arp_cfg.arp_scavenge_time);
+}
+
+void stale_timeout(struct lltable *llt, struct llentry *lle,
+		   uint64_t cur_time __unused)
+{
+	struct ifnet *ifp = llt->llt_ifp;
+
+	LLADDR_DEBUG("%s/%s, Scavenge\n", ifp->if_name, lladdr_ntop(lle));
+	arp_entry_destroy(llt, lle);
+}
+
+void delay_timeout(struct lltable *llt, struct llentry *lle)
+{
+	struct ifnet *ifp = llt->llt_ifp;
+
+	lle->la_asked = 1;
+	change_state(ifp, lle, LLINFO_PROBE, 1);
+	ll_probe(llt, lle);
+}
+
 static void ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 {
 	struct ifnet *ifp = llt->llt_ifp;
@@ -548,18 +594,23 @@ static void ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 		rte_spinlock_lock(&lle->ll_lock);
 		switch (lle->la_state) {
 		case LLINFO_INCOMPLETE:
+			resolve_timeout(llt, lle, cur_time);
 			break;
 
 		case LLINFO_REACHABLE:
+			reachable_timeout(llt, lle);
 			break;
 
 		case LLINFO_STALE:
+			stale_timeout(llt, lle, cur_time);
 			break;
 
 		case LLINFO_DELAY:
+			delay_timeout(llt, lle);
 			break;
 
 		case LLINFO_PROBE:
+			resolve_timeout(llt, lle, cur_time);
 			break;
 
 		default:

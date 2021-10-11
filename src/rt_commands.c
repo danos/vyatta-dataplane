@@ -346,7 +346,7 @@ static void lle_dump(const struct ifnet *ifp, struct llentry *la, void *arg)
 	jsonw_string_field(json, "mac", mac);
 	jsonw_string_field(json, "ifname", ifp->if_name);
 	jsonw_string_field(json, "state",
-			   la->la_state > (LLINFO_MAX-1) ? "UNKNOWN" : nd_state[la->la_state]);
+			   la->la_state >= LLINFO_MAX ? "UNKNOWN" : nd_state[la->la_state]);
 
 	if (la->la_flags & LLE_CREATED_IN_HW) {
 		jsonw_name(json, "platform_state");
