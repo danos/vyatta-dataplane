@@ -95,19 +95,17 @@ struct	ether_arp {
 #define	arp_pln	ea_hdr.ar_pln
 #define	arp_op	ea_hdr.ar_op
 
-/*
- * ARP does not yet have a state machine where entries go into REACHABLE state,
- * but use this to ensure entries are not aged out before this time.
- */
-#define ARP_REACHABLE_TIME 30
-
 /* Debugging messages */
 #define ARP_DEBUG(format, args...)	\
 	DP_DEBUG(ARP, DEBUG, ARP, format, ##args)
 
 struct arp_nbr_cfg arp_cfg = {
-	.arp_aging_time = ARPT_KEEP,
-	.arp_max_entry  = ARP_MAX_ENTRY,
+	.arp_retries		= ARP_RETRIES,
+	.arp_reachable_time	= ARP_REACHABLE_TIME,
+	.arp_scavenge_time	= ARP_SCAVENGE_TIME,
+	.arp_delay_time		= ARP_DELAY_TIME,
+	.arp_max_entry		= ARP_MAX_ENTRY,
+	.arp_max_hold		= ARP_MAXHOLD,
 };
 
 static struct garp_cfg garp_cfg = {
@@ -293,12 +291,12 @@ resolved:
 	 * the oldest packet if we have exceeded the system
 	 * setting.
 	 */
-	if (la->la_numheld >= ARP_MAXHOLD) {
+	if (la->la_numheld >= arp_cfg.arp_max_hold) {
 		ARPSTAT_INC(if_vrfid(ifp), dropped);
 		dp_pktmbuf_notify_and_free(la->la_held[0]);
 		memmove(&la->la_held[0], &la->la_held[1],
-			(ARP_MAXHOLD-1) * sizeof(la->la_held[0]));
-		la->la_held[ARP_MAXHOLD-1] = m;
+			(arp_cfg.arp_max_hold-1) * sizeof(la->la_held[0]));
+		la->la_held[arp_cfg.arp_max_hold-1] = m;
 	} else
 		la->la_held[la->la_numheld++] = m;
 
@@ -552,9 +550,9 @@ static int cmd_arp_cfg_handler(struct pb_msg *pbmsg)
 				"Cfg res token value %d out of range\n", val);
 			goto end;
 		}
-		arp_cfg.arp_aging_time = set ? val : ARPT_KEEP;
-		ARP_DEBUG("Cfg param arp_aging_time (arp timeout) set to: %d\n",
-			  arp_cfg.arp_aging_time);
+		arp_cfg.arp_reachable_time = set ? val : ARP_REACHABLE_TIME;
+		ARP_DEBUG("Cfg param arp_aging_time (arp reachable timeout) set to: %d\n",
+			  arp_cfg.arp_reachable_time);
 		break;
 	case NBR_RES_CONFIG__PARAM__MAX_ENTRY:
 		/*
@@ -601,7 +599,7 @@ int cmd_arp_get_cfg(FILE *f)
 
 	jsonw_pretty(wr, true);
 
-	jsonw_uint_field(wr, "Aging time",	   arp_cfg.arp_aging_time);
+	jsonw_uint_field(wr, "Aging time",	   arp_cfg.arp_reachable_time);
 	jsonw_int_field(wr, "Max entries",	   arp_cfg.arp_max_entry);
 
 	jsonw_destroy(&wr);

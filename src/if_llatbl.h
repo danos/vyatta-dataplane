@@ -47,12 +47,23 @@
 #include "if_var.h"
 #include "urcu.h"
 
-#define ARP_MAXHOLD	8	/* packets held until entry resolved */
-#define ARP_MAXPROBES	5	/* send at most 5 requests  */
-#define ARP_MAX_ENTRY   INT32_MAX /* default maximum number of entries */
+#define ARP_RETRIES 3
+#define ARP_REACHABLE_TIME 30
+#define ARP_SCAVENGE_TIME (20 * 60) /* Remove stale entries after 20 minutes */
+#define ARP_DELAY_TIME 5
+#define ARP_MAX_ENTRY INT32_MAX
+#define ARP_MAXHOLD 8	/* packets held until entry resolved */
 
-/* timer values */
-#define ARPT_KEEP	(20*60)	/* once resolved, good for 20 * minutes */
+enum nbr_state {
+	LLINFO_INCOMPLETE	= 0,
+	LLINFO_REACHABLE	= 1,
+	LLINFO_STALE		= 2,
+	LLINFO_DELAY		= 3,
+	LLINFO_PROBE		= 4,
+	LLINFO_MAX		= 5 /* Must be last */
+};
+
+const char *nd_state[LLINFO_MAX];
 
 /*
  * Generic neighbor ND/ARP entry

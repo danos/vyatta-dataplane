@@ -64,19 +64,22 @@
 #include "pktmbuf_internal.h"
 #include "urcu.h"
 #include "util.h"
-#include "vplane_debug.h"
 #include "vplane_log.h"
+
+const char *nd_state[LLINFO_MAX] = {
+	[LLINFO_INCOMPLETE] = "INCOMPLETE",
+	[LLINFO_REACHABLE]  = "REACHABLE",
+	[LLINFO_STALE]      = "STALE",
+	[LLINFO_DELAY]      = "DELAY",
+	[LLINFO_PROBE]      = "PROBE",
+};
 
 /*
  * Netlink socket to notify kernel about neighbor reachability
  */
 static struct mnl_socket *kernel_nl;
 
-/* Debugging messages */
-#define LLADDR_DEBUG(format, args...)	\
-	DP_DEBUG(ARP, DEBUG, LLADDR, format, ##args)
-
-static const char *lladdr_ntop(struct llentry *la)
+const char *lladdr_ntop(struct llentry *la)
 {
 	const struct sockaddr *sa = ll_sockaddr(la);
 	static char buf[INET6_ADDRSTRLEN];
@@ -115,8 +118,8 @@ void ll_addr_set(struct llentry *lle, const struct rte_ether_addr *eth)
 }
 
 /* Update existing link-layer addr table entry. */
-void lladdr_update(struct ifnet *ifp, struct llentry *la,
-		   const struct rte_ether_addr *enaddr, uint16_t flags)
+void lladdr_update(struct ifnet *ifp, struct llentry *la, uint8_t state,
+		   const struct rte_ether_addr *enaddr, uint16_t secs, uint16_t flags)
 {
 	struct rte_mbuf *la_held[ARP_MAXHOLD];
 	struct rte_ether_addr old_enaddr;
@@ -168,11 +171,13 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 			la->la_flags |= LLE_HW_UPD_PENDING;
 
 		/* fire timer to update hardware and/or install routes */
-		rte_timer_reset(&ifp->if_lltable->lle_timer, 0,
-				SINGLE, rte_get_master_lcore(),
-				lladdr_timer, ifp->if_lltable);
+		rte_timer_reset(&ifp->if_lltable->lle_timer, 0, SINGLE,
+				rte_get_master_lcore(), lladdr_timer, ifp->if_lltable);
 	}
 	la->la_flags |= flags;
+	LLADDR_DEBUG("%s/%s %s->%s\n", ifp->if_name, lladdr_ntop(la),
+		     nd_state[la->la_state], nd_state[state]);
+	la->la_state = state;
 
 	if (!was_valid) {
 		la_numheld = la->la_numheld;
@@ -223,16 +228,12 @@ void lladdr_update(struct ifnet *ifp, struct llentry *la,
 	/* entry updated */
 	rte_atomic16_clear(&la->ll_idle);
 
-	/* Expiry time is updated in ll_age() for entries not just added */
-	if (la->ll_expire)
-		return;
+	la->ll_expire = secs ? rte_get_timer_cycles() + rte_get_timer_hz() * secs : 0;
 
-	la->ll_expire = rte_get_timer_cycles() +
-		rte_get_timer_hz() * ARP_CFG(arp_aging_time);
-
-	/* Extend the timeout for locally created proxy entries */
-	if ((la->la_flags & LLE_LOCAL) && (la->la_flags & LLE_PROXY))
-		la->ll_expire += rte_get_timer_hz() * ARP_CFG(arp_aging_time);
+	/* Extend the timeout for locally created proxy entries in REACHABLE state*/
+	if ((state == LLINFO_REACHABLE) && secs > 0 &&
+	    (la->la_flags & LLE_LOCAL) && (la->la_flags & LLE_PROXY))
+		la->ll_expire += rte_get_timer_hz() * secs;
 }
 
 void kernel_neigh_netlink_sock_close(void)
@@ -329,6 +330,7 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 {
 	struct llentry *lle;
 	uint16_t flags = LLE_CREATE;
+	uint16_t secs = 0;
 
 	switch (sock->sa_family) {
 	case AF_INET:
@@ -382,8 +384,11 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 			new_flags |= LLE_STATIC;
 		if (ntf_flags & NTF_PROXY)
 			new_flags |= LLE_PROXY;
+		if (state & NUD_REACHABLE)
+			secs = arp_cfg.arp_reachable_time;
 
-		lladdr_update(ifp, lle, mac, new_flags);
+		lladdr_update(ifp, lle, LLINFO_REACHABLE,
+			      mac, secs, new_flags);
 	}
 
 	return 0;
@@ -468,63 +473,99 @@ void lladdr_nl_event(int family, struct ifnet *ifp, uint16_t type,
 	}
 }
 
+/*
+ * Change cache entry state
+ * Caller must have a spinlock on the entry if required
+ */
+static inline void
+change_state(struct ifnet *ifp, struct llentry *lle, uint8_t state,
+	     uint16_t expire)
+{
+
+	if (lle->la_flags & (LLE_STATIC | LLE_DELETED))
+		return;
+
+	LLADDR_DEBUG("%s/%s %s->%s\n", ifp->if_name, lladdr_ntop(lle),
+		     nd_state[lle->la_state], nd_state[state]);
+
+	lle->la_state = state;
+	lle->ll_expire = rte_get_timer_cycles() + expire * rte_get_timer_hz();
+
+	/* Extend the timeout for locally created proxy entries in REACHABLE state*/
+	if ((state == LLINFO_REACHABLE) && (lle->la_flags & LLE_LOCAL) &&
+	    (lle->la_flags & LLE_PROXY))
+		lle->ll_expire += rte_get_timer_hz() * expire;
+}
+
 /* Send a new ll request probe for entry that has not responded.
  * Since this runs in main lcore, and that can't send directly,
  * it intrudes into shadow output ring to send the packet.
  */
-static void ll_probe(struct lltable *llt, struct llentry *la)
+void
+ll_probe(struct lltable *llt, struct llentry *la)
 {
 	struct ifnet *ifp = llt->llt_ifp;
+	struct sockaddr *sa = ll_sockaddr(la);
+	struct rte_mbuf *m;
 
-	rte_spinlock_lock(&la->ll_lock);
-	if (++la->la_asked < ARP_MAXPROBES) {
-		struct sockaddr *sa = ll_sockaddr(la);
-		struct rte_mbuf *m;
-
-		rte_spinlock_unlock(&la->ll_lock);
-		switch (sa->sa_family) {
-		case AF_INET:
-			m = arprequest(ifp, sa);
-			break;
-		default:
-			m = NULL;
-			break;
-		}
-		/*
-		 * Note: even though this may be a forwarded packet,
-		 * NULL is passed in for the input interface since
-		 * this is only used for tunnel interfaces in certain
-		 * corner cases and it's not worth the effort of
-		 * keeping track of the input interface context.
-		 */
-		if (m)
-			if_output(ifp, m, NULL, htons(ethhdr(m)->ether_type));
-	} else {
-		arp_entry_destroy(llt, la);
-		rte_spinlock_unlock(&la->ll_lock);
-
-		ARPSTAT_INC(if_vrfid(ifp), timeouts);
-
-		LLADDR_DEBUG("retries exhausted for %s\n", lladdr_ntop(la));
+	switch (sa->sa_family) {
+	case AF_INET:
+		m = arprequest(ifp, sa);
+		break;
+	default:
+		m = NULL;
+		break;
 	}
+
+	/*
+	 * Note: even though this may be a forwarded packet,
+	 * NULL is passed in for the input interface since
+	 * this is only used for tunnel interfaces in certain
+	 * corner cases and it's not worth the effort of
+	 * keeping track of the input interface context.
+	 */
+	if (m)
+		if_output(ifp, m, NULL, htons(ethhdr(m)->ether_type));
 }
 
 static void ll_age(struct lltable *llt, struct llentry *lle, uint64_t cur_time)
 {
-	if (llentry_has_been_used_and_clear(lle)) {
-		lle->ll_expire =
-			cur_time + rte_get_timer_hz() * ARP_CFG(arp_aging_time);
+	struct ifnet *ifp = llt->llt_ifp;
 
-		/* Extend the timeout for locally created proxy entries */
-		if ((lle->la_flags & LLE_LOCAL) && (lle->la_flags & LLE_PROXY))
-			lle->ll_expire +=
-				rte_get_timer_hz() * ARP_CFG(arp_aging_time);
-
-	} else if ((int64_t)(cur_time - lle->ll_expire) >= 0) {
-		LLADDR_DEBUG("expire entry for %s, flags %#x\n",
-			     lladdr_ntop(lle), lle->la_flags);
+	/*
+	 * Check for traffic in Stale state
+	 */
+	if (llentry_has_been_used_and_clear(lle) &&
+	    (lle->la_state == LLINFO_STALE)) {
 		rte_spinlock_lock(&lle->ll_lock);
-		arp_entry_destroy(llt, lle);
+		change_state(ifp, lle, LLINFO_DELAY,
+			     arp_cfg.arp_delay_time);
+		rte_spinlock_unlock(&lle->ll_lock);
+		return;
+	}
+
+	if ((int64_t)(cur_time - lle->ll_expire) >= 0) {
+		rte_spinlock_lock(&lle->ll_lock);
+		switch (lle->la_state) {
+		case LLINFO_INCOMPLETE:
+			break;
+
+		case LLINFO_REACHABLE:
+			break;
+
+		case LLINFO_STALE:
+			break;
+
+		case LLINFO_DELAY:
+			break;
+
+		case LLINFO_PROBE:
+			break;
+
+		default:
+			arp_entry_destroy(llt, lle);
+			break;
+		}
 		rte_spinlock_unlock(&lle->ll_lock);
 	}
 }
@@ -589,12 +630,14 @@ void lladdr_timer(struct rte_timer *tim __rte_unused, void *arg)
 		if ((lle->la_flags & (LLE_LOCAL | LLE_VALID)) == LLE_LOCAL) {
 			if (lltable_probe_timer_is_enabled() &&
 			    refresh_timer_expired)
-				ll_probe(llt, lle);
-		} else if (lle->ll_expire == 0 || !refresh_timer_expired) {
-			continue;
-		} else if (lle->la_flags & LLE_VALID || lle->la_flags == 0) {
-			ll_age(llt, lle, cur_time);
+				ll_age(llt, lle, cur_time);
 		}
+
+		if (lle->ll_expire == 0 || !refresh_timer_expired)
+			continue;
+
+		if (lle->la_flags & LLE_VALID || lle->la_flags == 0)
+			ll_age(llt, lle, cur_time);
 	}
 
 	cur_time = rte_get_timer_cycles();

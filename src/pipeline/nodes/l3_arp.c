@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1988, 1993
  *	The Regents of the University of California.  All rights reserved.
  *
@@ -223,6 +223,7 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	bool garp;
 	struct ifnet *vrrp_ifp;
 	int resp;
+	bool reachable = false;
 
 	eh = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
 	vrrp_ifp = macvlan_get_vrrp_if(ifp,
@@ -329,10 +330,21 @@ arp_in_nothot_process(struct pl_packet *pkt, void *context __unused)
 	 * If the ARP table does not contain that IP address we will
 	 * drop it without creating an entry.
 	 */
+
+	if (op == ARPOP_REPLY && in_lltable_find(ifp, isaddr))
+		reachable = true;
+
 	la = in_lltable_lookup(ifp, garp ? 0 : LLE_CREATE, isaddr);
 	if (la) {
-		lladdr_update(ifp, la,
-			      (struct rte_ether_addr *) ah->arp_sha, 0);
+		if (reachable) {
+			lladdr_update(ifp, la, LLINFO_REACHABLE,
+				      (struct rte_ether_addr *) ah->arp_sha,
+				      arp_cfg.arp_reachable_time, 0);
+		} else if (!rte_ether_addr_equal((struct rte_ether_addr *) ah->arp_sha,
+						 &la->ll_addr))
+			lladdr_update(ifp, la, LLINFO_STALE,
+				      (struct rte_ether_addr *) ah->arp_sha,
+				      arp_cfg.arp_scavenge_time, 0);
 
 		/* Allow packet to bleed back to keep local tables in sync. */
 		if ((op == ARPOP_REPLY) || garp) {

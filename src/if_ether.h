@@ -11,6 +11,9 @@
 
 #include <stdint.h>
 
+#include "vplane_debug.h"
+#include "if_llatbl.h"
+
 struct rte_ether_addr;
 struct ifnet;
 struct llentry;
@@ -19,8 +22,12 @@ struct rte_timer;
 
 enum cont_src_en;
 
-void lladdr_update(struct ifnet *ifp, struct llentry *la,
-		   const struct rte_ether_addr *enaddr, uint16_t flags);
+/* Debugging messages */
+#define LLADDR_DEBUG(format, args...)	\
+	DP_DEBUG(ARP, DEBUG, LLADDR, format, ##args)
+
+void lladdr_update(struct ifnet *ifp, struct llentry *la, uint8_t state,
+		   const struct rte_ether_addr *enaddr, uint16_t secs, uint16_t flags);
 void lladdr_timer(struct rte_timer *, void *arg);
 void in6_lladdr_timer(struct rte_timer *tim, void *arg);
 void lladdr_nl_event(int family, struct ifnet *ifp,
@@ -34,5 +41,7 @@ void llentry_routing_install(struct llentry *lle);
 void kernel_mark_neigh_reachable(const struct sockaddr *addr, uint32_t ifindex);
 void kernel_neigh_netlink_sock_init(void);
 void kernel_neigh_netlink_sock_close(void);
+void lladdr_ulr_update(struct ifnet *ifp, struct in_addr *addr, const bool confirmed);
+const char *lladdr_ntop(struct llentry *la);
 
 #endif /* IF_ETHER_H */

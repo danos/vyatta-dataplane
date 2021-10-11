@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 1982, 1986, 1991, 1993
  *	The Regents of the University of California.  All rights reserved.
  * Copyright (C) 2001 WIDE Project.  All rights reserved.
@@ -96,7 +96,15 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 			return NULL;
 		}
 
+		lle->la_state = LLINFO_INCOMPLETE;
+		LLADDR_DEBUG("%s/%s %s\n", ifp->if_name, lladdr_ntop(lle),
+			     nd_state[lle->la_state]);
+
+		/* Use a 1 second timeout for now */
+		lle->ll_expire = 1 * rte_get_timer_hz();
 		lle->la_flags = flags & ~LLE_CREATE;
+		lle->la_asked = 0;
+
 		if (if_is_features_mode_active(
 			    ifp, IF_FEAT_MODE_EVENT_L3_FAL_ENABLED))
 			lle->la_flags |= LLE_HW_UPD_PENDING;
@@ -142,15 +150,15 @@ in_lltable_lookup(struct ifnet *ifp, u_int flags, in_addr_t addr)
 		}
 	} else if (unlikely(flags & LLE_DELETE)) {
 		/*
-		 * Only delete static or idle entries.
+		 * Only delete static entries or stale entries that are idle.
 		 * Leave dynamic entries to time out if they are in use or
 		 * created locally (unless the deletion is for local entries).
 		 * An entry that is stale and being removed in the kernel may
 		 * be in active use in the dataplane.
 		 */
 		if ((lle->la_flags & LLE_STATIC) ||
-		    ((!(lle->la_flags & LLE_LOCAL) || (flags & LLE_LOCAL)) &&
-		     !llentry_has_been_used(lle))) {
+		    ((!(lle->la_flags & LLE_LOCAL) || (flags & LLE_LOCAL) ||
+		    (lle->la_state == LLINFO_STALE)) && !llentry_has_been_used(lle))) {
 			rte_spinlock_lock(&lle->ll_lock);
 			arp_entry_destroy(llt, lle);
 			rte_spinlock_unlock(&lle->ll_lock);

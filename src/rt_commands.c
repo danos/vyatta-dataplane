@@ -24,6 +24,7 @@
 #include "commands.h"
 #include "compat.h"
 #include "ether.h"
+#include "if_ether.h"
 #include "if_llatbl.h"
 #include "if_var.h"
 #include "ip_addr.h"
@@ -344,6 +345,8 @@ static void lle_dump(const struct ifnet *ifp, struct llentry *la, void *arg)
 	ether_ntoa_r(&la->ll_addr, mac);
 	jsonw_string_field(json, "mac", mac);
 	jsonw_string_field(json, "ifname", ifp->if_name);
+	jsonw_string_field(json, "state",
+			   la->la_state > (LLINFO_MAX-1) ? "UNKNOWN" : nd_state[la->la_state]);
 
 	if (la->la_flags & LLE_CREATED_IN_HW) {
 		jsonw_name(json, "platform_state");

@@ -29,8 +29,12 @@ int arpresolve_fast(struct ifnet *ifp, struct rte_mbuf *m,
 void arpresolve_hw_ecmp(struct rte_mbuf *m, const struct next_hop *nh_prime);
 
 struct arp_nbr_cfg {
-	uint32_t arp_aging_time;
-	int32_t  arp_max_entry;
+	uint8_t		arp_retries;
+	uint16_t	arp_reachable_time;
+	uint16_t	arp_scavenge_time;
+	uint16_t	arp_delay_time;
+	int32_t		arp_max_entry;
+	uint8_t		arp_max_hold;
 };
 
 extern struct arp_nbr_cfg arp_cfg;
