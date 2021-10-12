@@ -81,6 +81,8 @@ override_dh_gencontrol: CFG_VERSIONS = $(shell ASAN_OPTIONS=verify_asan_link_ord
 override_dh_gencontrol:
 	dh_gencontrol -- -V'protocols:Provides=$(CFG_VERSIONS) $(OP_VERSIONS)'
 
+
 override_dh_systemd_enable:
 	dh_systemd_enable --name=vyatta-dataplane
+	dh_systemd_enable --name=vyatta-dataplane-setup
 	dh_systemd_enable --name=proc-xen

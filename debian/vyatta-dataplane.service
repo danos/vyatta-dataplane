@@ -19,7 +19,6 @@ Environment="DATAPLANE_ARGS=-u dataplane -g adm"
 Environment="DPDK_ARGS=--syslog local6 --log-level 8"
 EnvironmentFile=-/etc/default/dataplane
 EnvironmentFile=/run/dataplane/eal-args
-ExecStartPre=/bin/rm -f /run/dataplane/platform.conf
 ExecStartPre=/bin/run-parts /lib/vplane/prestart.d
 ExecStartPre=/bin/bash -c "echo -n 'DPDK_EAL_ARGS=${DPDK_ARGS} ' > $TMP_EAL; \
   /lib/vplane/vplane-eal-args /etc/vyatta/dataplane.conf >> $TMP_EAL"

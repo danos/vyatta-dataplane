@@ -1,3 +1,0 @@
-#! /bin/sh
-
-/opt/vyatta/bin/vyatta-platform-util --configure-dataplane /run/dataplane/platform.conf
