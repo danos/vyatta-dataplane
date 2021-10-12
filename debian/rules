@@ -90,6 +90,7 @@ override_dh_gencontrol:
 
 override_dh_installsystemd:
 	dh_installsystemd --name=vyatta-dataplane
+	dh_installsystemd --name=vyatta-dataplane-setup
 	dh_installsystemd --name=proc-xen
 
 # Do not generate package-build-time versioned shlibs/symbols files.

@@ -1,0 +1,20 @@
+#
+# Copyright (c) 2021, AT&T Intellectual Property.
+# All rights reserved.
+#
+# SPDX-License-Identifier: LGPL-2.1-only
+#
+# Startup service to detect hardware and set up dataplane configuration
+#
+[Unit]
+Description=Vyatta Dataplane Setup
+Wants=ufispace-apollo-bsp-init.service ufispace-s9500-bsp-init.service
+After=ufispace-apollo-bsp-init.service ufispace-s9500-bsp-init.service
+Before=vyatta-sfpd.service vyatta-dataplane.service
+
+[Service]
+Type=oneshot
+ExecStart=/lib/vplane/vplane-platform-cfg
+
+[Install]
+WantedBy=config-loaded.target
