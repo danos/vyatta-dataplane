@@ -356,7 +356,7 @@ lladdr_add(struct ifnet *ifp, struct sockaddr *sock,
 	lle = in_lltable_lookup(ifp, flags, satosin(sock)->sin_addr.s_addr);
 
 	if (state & NUD_STALE) {
-		if (llentry_has_been_used(lle))
+		if (lle && llentry_has_been_used(lle))
 			kernel_mark_neigh_reachable(sock, ifp->if_index);
 	} else if (state & NUD_FAILED) {
 

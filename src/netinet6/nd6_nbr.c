@@ -1605,7 +1605,7 @@ nd6_lladdr_add(struct ifnet *ifp, struct in6_addr *addr,
 	}
 
 	if (state & NUD_STALE) {
-		if (llentry_has_been_used(lle)) {
+		if (lle && llentry_has_been_used(lle)) {
 			sock.sin6_family = AF_INET6;
 			memcpy(&sock.sin6_addr, addr, sizeof(struct in6_addr));
 			kernel_mark_neigh_reachable((struct sockaddr *)&sock,
