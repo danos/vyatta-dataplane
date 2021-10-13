@@ -448,6 +448,11 @@ enum sfp_calib_const_type {
 	SFP_CALIB_CONST_MAX
 };
 
+enum PWR_TYPE {
+	TX_PWR = 0,
+	RX_PWR = 1,
+};
+
 static const char *sfp_calib_const_strs[SFP_CALIB_CONST_MAX] = {
 	"tx_laser",
 	"tx_pwr",
@@ -1587,7 +1592,7 @@ print_sfp_rx_power(const struct rte_dev_eeprom_info *eeprom_info,
 
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_RX_POWER, 2, xbuf);
-	convert_sff_power(wr, "rx_power_mW", xbuf, true, c_consts);
+	convert_sff_power(wr, "rx_power_mW", xbuf, RX_PWR, c_consts);
 }
 
 #define TX_POWER_FIELD_NAME "tx_power_mW"
@@ -1608,7 +1613,7 @@ print_sfp_tx_power(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 		memset(xbuf, 0, sizeof(xbuf));
 		get_eeprom_data(eeprom_info, SFF_8472_DIAG, SFF_8472_TX_POWER,
 				2, xbuf);
-		convert_sff_power(wr, TX_POWER_FIELD_NAME, xbuf, false, c_consts);
+		convert_sff_power(wr, TX_POWER_FIELD_NAME, xbuf, TX_PWR, c_consts);
 	} else
 		jsonw_float_field(wr, TX_POWER_FIELD_NAME, 0);
 }
@@ -1634,7 +1639,7 @@ print_qsfp_rx_power(const struct rte_dev_eeprom_info *eeprom_info,
 	memset(xbuf, 0, sizeof(xbuf));
 	get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			SFF_8436_RX_CH1_MSB + (chan * 2), 2, xbuf);
-	convert_sff_power(wr, "rx_power_mW", xbuf, true, NULL);
+	convert_sff_power(wr, "rx_power_mW", xbuf, RX_PWR, NULL);
 }
 
 static void
@@ -1647,7 +1652,7 @@ print_qsfp_tx_power(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 		memset(xbuf, 0, sizeof(xbuf));
 		get_eeprom_data(eeprom_info, SFF_8436_BASE,
 				SFF_8436_TX_CH1_MSB + (chan * 2), 2, xbuf);
-		convert_sff_power(wr, TX_POWER_FIELD_NAME, xbuf, false, NULL);
+		convert_sff_power(wr, TX_POWER_FIELD_NAME, xbuf, TX_PWR, NULL);
 	} else
 		jsonw_float_field(wr, TX_POWER_FIELD_NAME, 0);
 }
@@ -1771,19 +1776,19 @@ print_qsfp_tx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_POWER_HIGH_ALARM, 2, xbuf))
 		convert_sff_power(wr, "high_tx_power_alarm_thresh", xbuf,
-				  false, NULL);
+				  TX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_POWER_LOW_ALARM, 2, xbuf))
 		convert_sff_power(wr, "low_tx_power_alarm_thresh", xbuf,
-				  false, NULL);
+				  TX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_POWER_HIGH_WARN, 2, xbuf))
 		convert_sff_power(wr, "high_tx_power_warn_thresh", xbuf,
-				  false, NULL);
+				  TX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_TX_POWER_LOW_WARN, 2, xbuf))
 		convert_sff_power(wr, "low_tx_power_warn_thresh", xbuf,
-				  false, NULL);
+				  TX_PWR, NULL);
 }
 
 static void
@@ -1796,19 +1801,19 @@ print_qsfp_rx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_RX_POWER_HIGH_ALARM, 2, xbuf))
 		convert_sff_power(wr, "high_rx_power_alarm_thresh", xbuf,
-				  true, NULL);
+				  RX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_RX_POWER_LOW_ALARM, 2, xbuf))
 		convert_sff_power(wr, "low_rx_power_alarm_thresh", xbuf,
-				  true, NULL);
+				  RX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_RX_POWER_HIGH_WARN, 2, xbuf))
 		convert_sff_power(wr, "high_rx_power_warn_thresh", xbuf,
-				  true, NULL);
+				  RX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8436_BASE,
 			     SFF_8636_RX_POWER_LOW_WARN, 2, xbuf))
 		convert_sff_power(wr, "low_rx_power_warn_thresh", xbuf,
-				  true, NULL);
+				  RX_PWR, NULL);
 }
 
 static void
@@ -1899,19 +1904,19 @@ print_tx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TX_POWER_HIGH_ALM, 2, xbuf))
 		convert_sff_power(wr, "high_tx_power_alarm_thresh", xbuf,
-				  false, NULL);
+				  TX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TX_POWER_LOW_ALM, 2, xbuf))
 		convert_sff_power(wr, "low_tx_power_alarm_thresh", xbuf,
-				  false, NULL);
+				  TX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TX_POWER_HIGH_WARN, 2, xbuf))
 		convert_sff_power(wr, "high_tx_power_warn_thresh", xbuf,
-				  false, NULL);
+				  TX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_TX_POWER_LOW_WARN, 2, xbuf))
 		convert_sff_power(wr, "low_tx_power_warn_thresh", xbuf,
-				  false, NULL);
+				  TX_PWR, NULL);
 }
 
 static void
@@ -1924,19 +1929,19 @@ print_rx_power_thresholds(const struct rte_dev_eeprom_info *eeprom_info,
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_RX_POWER_HIGH_ALM, 2, xbuf))
 		convert_sff_power(wr, "high_rx_power_alarm_thresh", xbuf,
-				  false, NULL);
+				  RX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_RX_POWER_LOW_ALM, 2, xbuf))
 		convert_sff_power(wr, "low_rx_power_alarm_thresh", xbuf,
-				  false, NULL);
+				  RX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_RX_POWER_HIGH_WARN, 2, xbuf))
 		convert_sff_power(wr, "high_rx_power_warn_thresh", xbuf,
-				  false, NULL);
+				  RX_PWR, NULL);
 	if (!get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 			     SFF_8472_RX_POWER_LOW_WARN, 2, xbuf))
 		convert_sff_power(wr, "low_rx_power_warn_thresh", xbuf,
-				  false, NULL);
+				  RX_PWR, NULL);
 }
 
 static void
