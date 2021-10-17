@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019, AT&T Intellectual Property.  All rights reserved.
+// Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
 //
 // SPDX-License-Identifier: LGPL-2.1-only
 //
@@ -11,11 +11,17 @@ option go_package = "github.com/danos/vyatta-dataplane/protobuf/go/XConnectConfi
 
 message XConnectConfig {
 	enum CommandType {
-	     ADD = 0;
+	     ADD    = 0;
 	     REMOVE = 1;
 	     UPDATE = 2;
 	}
-	optional CommandType cmd = 1;
- 	optional string dp_ifname = 2;
+	enum XConnectType {
+		ETHER   = 0;
+		L2TPETH = 1;
+	}
+	optional CommandType cmd   = 1;
+	optional string dp_ifname  = 2;
 	optional string new_ifname = 3;
+	optional XConnectType type = 4;
+	optional uint32 ttl        = 5;
 }

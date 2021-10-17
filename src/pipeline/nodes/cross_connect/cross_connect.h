@@ -32,8 +32,8 @@ struct conn_session {
 typedef void conn_iter_func_t(void *, void *arg);
 
 void conn_session_walk(conn_iter_func_t func, void *arg);
-int cross_connect_set(const XConnectConfig__CommandType cmd,
-		      const char *ifname1, const char *ifname2);
+int cross_connect_set(const XConnectConfig__CommandType cmd, XConnectConfig__XConnectType type,
+		      const char *ifname1, const char *ifname2, uint8_t ttl);
 void cross_connect_rename(struct ifnet *ifp, const char *ifname);
 
 void cross_connect_link(struct ifnet *src_ifp, struct ifnet *dst_ifp,

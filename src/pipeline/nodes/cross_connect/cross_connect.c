@@ -1,7 +1,7 @@
 /*
  * Cross-Connect
  *
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -146,8 +146,8 @@ conn_update(const char *ifname1, const char *ifname2)
 		conn_session_insert(session);
 }
 
-int cross_connect_set(const XConnectConfig__CommandType cmd,
-		      const char *ifname1, const char *ifname2)
+int cross_connect_set(const XConnectConfig__CommandType cmd, XConnectConfig__XConnectType type,
+		      const char *ifname1, const char *ifname2, uint8_t ttl)
 {
 	if (cmd == XCONNECT_CONFIG__COMMAND_TYPE__REMOVE) {
 		struct ifnet *src_ifp = dp_ifnet_byifname(ifname1);
@@ -158,9 +158,24 @@ int cross_connect_set(const XConnectConfig__CommandType cmd,
 		struct conn_session *session = conn_session_byname(ifname1);
 		if (session)
 			conn_session_delete(session);
-	} else
-		conn_update(ifname1, ifname2);
-
+	} else {
+		switch (type) {
+		case XCONNECT_CONFIG__XCONNECT_TYPE__L2TPETH:
+			/* creation of l2tp crossconnect is via l2tp_set_xconnect */
+			if (cmd == XCONNECT_CONFIG__COMMAND_TYPE__ADD)
+				l2tp_set_xconnect("add", ifname1, ifname2, ttl);
+			else
+				l2tp_set_xconnect("update", ifname1, ifname2, ttl);
+			break;
+		case XCONNECT_CONFIG__XCONNECT_TYPE__ETHER:
+			conn_update(ifname1, ifname2);
+			break;
+		default:
+			RTE_LOG(ERR, DATAPLANE, "unsupported xconnect type for %s %s\n", ifname1,
+				ifname2);
+			return -1;
+		}
+	}
 	return 0;
 }
 

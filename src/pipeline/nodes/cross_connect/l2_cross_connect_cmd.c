@@ -2,7 +2,7 @@
  * l2_cross_connect_cmd.c
  *
  *
- * Copyright (c) 2018-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.  All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
  */
@@ -55,6 +55,8 @@ static int cmd_xconnect_cfg(struct pb_msg *msg)
 {
 	void *payload = (void *)((char *)msg->msg);
 	int len = msg->msg_len;
+	XConnectConfig__XConnectType type;
+	int ret = -1;
 
 	XConnectConfig *xmsg =
 		xconnect_config__unpack(NULL, len,
@@ -65,10 +67,31 @@ static int cmd_xconnect_cfg(struct pb_msg *msg)
 		return -1;
 	}
 
-	int ret = cross_connect_set(xmsg->cmd,
-				    xmsg->dp_ifname,
-				    xmsg->new_ifname);
+	/* Validations over optional fields */
+	if (!xmsg->has_cmd) {
+		/* cmd is required for l2tp xconnect config */
+		RTE_LOG(ERR, DATAPLANE, "missing cmd for xconnect config %s %s\n", xmsg->dp_ifname,
+			xmsg->new_ifname);
+		goto done;
+	}
 
+	if (xmsg->has_type)
+		type = xmsg->type;
+	else
+		type = XCONNECT_CONFIG__XCONNECT_TYPE__ETHER;
+
+	if ((type == XCONNECT_CONFIG__XCONNECT_TYPE__L2TPETH) &&
+	    (xmsg->cmd == XCONNECT_CONFIG__COMMAND_TYPE__ADD) && (!xmsg->has_ttl)) {
+		/* ttl is required for l2tp xconnect creation */
+		RTE_LOG(ERR, DATAPLANE, "missing ttl for l2tp xconnect %s %s\n", xmsg->dp_ifname,
+			xmsg->new_ifname);
+		goto done;
+	}
+
+	ret = cross_connect_set(xmsg->cmd, type, xmsg->dp_ifname, xmsg->new_ifname,
+				xmsg->ttl);
+
+done:
 	xconnect_config__free_unpacked(xmsg, NULL);
 
 	return ret;

@@ -1,7 +1,7 @@
 /*
  * Handle L2TPv3 GeNetlink events
  *
- * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
+ * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2014-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
  *
@@ -797,7 +797,7 @@ void l2tp_init_stats(struct l2tp_session *session)
 	return l2tp_init_stats_all();
 }
 
-int l2tp_set_xconnect(char *cmd, char *dpifname, char *l2tpifname, char *ttl)
+int l2tp_set_xconnect(char *cmd, const char *dpifname, const char *l2tpifname, uint8_t ttl)
 {
 	struct ifnet *dpifp = dp_ifnet_byifname(dpifname);
 
@@ -829,21 +829,17 @@ int l2tp_set_xconnect(char *cmd, char *dpifname, char *l2tpifname, char *ttl)
 
 	if (strcmp(cmd, "add") == 0) {
 		if (session->xconnect_ifidx)
-			l2tp_xconnect_update(dpifp, session, session,
-					     l2tpifp, atoi(ttl));
+			l2tp_xconnect_update(dpifp, session, session, l2tpifp, ttl);
 		else
-			l2tp_xconnect_update(dpifp, NULL, session, l2tpifp,
-					     atoi(ttl));
+			l2tp_xconnect_update(dpifp, NULL, session, l2tpifp, ttl);
 	} else if (strcmp(cmd, "remove") == 0) {
-		l2tp_xconnect_update(dpifp, session, NULL, l2tpifp,
-				     atoi(ttl));
+		l2tp_xconnect_update(dpifp, session, NULL, l2tpifp, ttl);
 		session->ttl = 0;
 	} else if (strcmp(cmd, "update") == 0) {
 		if (session->xconnect_ifidx != dpifp->if_index)
-			l2tp_xconnect_update(dpifp, session, session,
-					     l2tpifp, atoi(ttl));
+			l2tp_xconnect_update(dpifp, session, session, l2tpifp, ttl);
 		else
-			session->ttl = atoi(ttl);
+			session->ttl = ttl;
 	}
 
 	return 0;

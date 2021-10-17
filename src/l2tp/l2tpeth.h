@@ -162,7 +162,7 @@ void l2tp_tunnel_walk(l2tp_iter_func_t func, void *arg);
 void l2tp_output(struct ifnet *ifp, struct rte_mbuf *m);
 void l2tp_stats(const struct l2tp_session *session,
 		       struct l2tp_stats *stats);
-int l2tp_set_xconnect(char *cmd, char *, char*, char *);
+int l2tp_set_xconnect(char *cmd, const char *dpifname, const char *l2tpifname, uint8_t ttl);
 
 int l2tp_udpv4_recv_encap(struct rte_mbuf *m, const struct iphdr *ip,
 			  const struct udphdr *udp);
