@@ -408,7 +408,7 @@ static unsigned int arp_flush_entry(struct lltable *llt, struct llentry *la,
 	return 0;
 }
 
-static const char *const nd6_state[ND6_LLINFO_MAX + 1] = {
+static const char *const nd6_state[ND6_LLINFO_MAX] = {
 	"INCOMPLETE", "REACHABLE", "STALE", "DELAY", "PROBE"};
 
 static void lle6_dump(const struct ifnet *ifp, struct llentry *la, void *arg)
@@ -426,7 +426,7 @@ static void lle6_dump(const struct ifnet *ifp, struct llentry *la, void *arg)
 						 b1, sizeof(b1)));
 	jsonw_string_field(json, "flags", arp_flags(la->la_flags));
 	jsonw_string_field(json, "state",
-			   la->la_state > ND6_LLINFO_MAX ? "UNKNOWN" :
+			   la->la_state >= ND6_LLINFO_MAX ? "UNKNOWN" :
 			   nd6_state[la->la_state]);
 	ether_ntoa_r(&la->ll_addr, mac);
 	jsonw_string_field(json, "mac", mac);

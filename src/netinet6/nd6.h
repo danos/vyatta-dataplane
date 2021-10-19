@@ -67,11 +67,13 @@ union nd_opts {
 #define nd_opts_last		nd_opt_each.last
 #define nd_opts_done		nd_opt_each.done
 
-#define ND6_LLINFO_INCOMPLETE	0
-#define ND6_LLINFO_REACHABLE	1
-#define ND6_LLINFO_STALE	2
-#define ND6_LLINFO_DELAY	3
-#define ND6_LLINFO_PROBE	4
-#define ND6_LLINFO_MAX ND6_LLINFO_PROBE
+enum nd6_nbr_state {
+	ND6_LLINFO_INCOMPLETE	= 0,
+	ND6_LLINFO_REACHABLE	= 1,
+	ND6_LLINFO_STALE	= 2,
+	ND6_LLINFO_DELAY	= 3,
+	ND6_LLINFO_PROBE	= 4,
+	ND6_LLINFO_MAX		= 5 /* Must be last */
+};
 
 #endif /* ND6_H */
