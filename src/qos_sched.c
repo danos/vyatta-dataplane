@@ -61,6 +61,7 @@
 #include "util.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
+#include "pd_show.h"
 
 #define	MAX_LINERATE	(100000000000/8) /* 100Gbits converted to bytes */
 
@@ -2591,6 +2592,74 @@ static int cmd_qos_obj_db(FILE *f)
 
 	jsonw_destroy(&context.wr);
 	return ret;
+}
+
+/* Context for count_qos callback function */
+struct qos_hw_stats_counter_context {
+	enum qos_obj_db_level level;	/* Input */
+	uint32_t *stats;				/* Output */
+};
+
+/*
+ * Call back function called from qos_obj_db_walk_int
+ * qos_obj_db_walk_int steps through each element of the qos database tree and
+ * invokes this callback on each element.
+ * The callback checks it's input - context->level - to determine if the current
+ * element has the same qos_obj_db_level as the specified qos_obj_db_level.
+ * If it does it checks the elements sw_state and increments it's output counters
+ * - context->stats.
+ */
+static int qos_hw_stats_counter(void *arg, struct qos_obj_db_obj *db_obj,
+				     enum qos_obj_db_level level, uint32_t *ids __unused)
+{
+	struct qos_hw_stats_counter_context *context = (struct qos_hw_stats_counter_context *)arg;
+
+	if (level == context->level) {
+		enum qos_obj_sw_state sw_state;
+		qos_obj_db_sw_get(db_obj, &sw_state);
+
+		switch (sw_state) {
+		case QOS_OBJ_SW_STATE_HW_PROG_SUCCESSFUL:
+			++context->stats[PD_OBJ_STATE_FULL];
+			break;
+		case QOS_OBJ_SW_STATE_HW_PROG_PARTIAL:
+			++context->stats[PD_OBJ_STATE_PARTIAL];
+			break;
+		case QOS_OBJ_SW_STATE_HW_PROG_FAILED:
+			++context->stats[PD_OBJ_STATE_NO_RESOURCE];
+			break;
+		default:
+			/* Do nothing */
+			break;
+		}
+	}
+	return 0;
+}
+
+static uint32_t stats[PD_OBJ_STATE_LAST] = {0};
+static uint32_t *qos_hw_stats_get(enum qos_obj_db_level level)
+{
+	memset(stats, 0, sizeof(stats)); /* Reset global static variable */
+
+	struct qos_hw_stats_counter_context context;
+	context.level = level;
+	context.stats = stats;
+
+	qos_obj_db_walk(qos_hw_stats_counter, &context);
+
+	return stats;
+}
+
+/* Op mode command: 'show platform dataplane'. Row  'qos-if' */
+uint32_t *qos_interface_hw_stats_get(void)
+{
+	return qos_hw_stats_get(QOS_OBJ_DB_LEVEL_PORT);
+}
+
+/* Op mode command: 'show platform dataplane'. Row 'qos-vlan' */
+uint32_t *qos_vlan_hw_stats_get(void)
+{
+	return qos_hw_stats_get(QOS_OBJ_DB_LEVEL_SUBPORT);
 }
 
 static int cmd_qos_port(struct ifnet *ifp, int argc, char **argv)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, AT&T Intellectual Property.
+ * Copyright (c) 2018-2021, AT&T Intellectual Property.
  * All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -18,6 +18,7 @@
 #include "fal.h"
 #include "ipmc_pd_show.h"
 #include "vrf_internal.h"
+#include "qos.h"
 
 static const char * const pd_obj_state_names[] = {
 	"full",
@@ -61,6 +62,10 @@ static const struct pd_show_cmd pd_show_cmd_table[] = {
 	  mpls_label_table_get_pd_subset_data,  "Show route" },
 	{ "vrf", NULL, vrf_table_hw_stats_get,
 	  vrf_table_get_pd_subset_data,  "Show VRF" },
+	{ "qos-if", NULL, qos_interface_hw_stats_get,
+	  NULL,  "Show qos interface" },
+	{ "qos-vlan", NULL, qos_vlan_hw_stats_get,
+	  NULL,  "Show qos vlan" },
 	{ NULL, NULL, NULL, NULL, NULL },
 };
 

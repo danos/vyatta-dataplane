@@ -677,5 +677,7 @@ struct egress_map_subport_info *qos_egress_map_subport_get(
 		struct ifnet *parent_ifp, int vlan_id);
 struct egress_map_subport_info *qos_egress_map_subport_new(struct ifnet *ifp,
 				 struct ifnet *parent_ifp, bool is_sub_if);
+uint32_t *qos_interface_hw_stats_get(void);
+uint32_t *qos_vlan_hw_stats_get(void);
 
 #endif /* QOS_H */
