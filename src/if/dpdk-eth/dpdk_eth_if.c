@@ -1196,7 +1196,7 @@ void dpdk_eth_if_show_xcvr_info(struct ifnet *ifp, bool include_static,
 				 sc->xcvr_info.module_info.eeprom_len);
 	}
 	sfp_status((ifp->if_flags & IFF_UP ? true : false),
-		   &sc->xcvr_info.module_info, &sc->xcvr_info.eeprom_info,
+		   &sc->xcvr_info,
 		   include_static, wr);
 	jsonw_end_object(wr);
 }

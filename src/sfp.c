@@ -1471,12 +1471,10 @@ get_sfp_calibration_constants(const struct rte_dev_eeprom_info *eeprom_info,
 
 static void
 get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info,
-			      struct sfp_calibration_constants *c_consts,
-			      json_writer_t *wr)
+				   json_writer_t *wr)
 {
 	uint16_t i, offset, cursor;
 	uint8_t xbuf[4];
-	union ieee754_float rx_pwr;
 	char json_field_name[30], json_str[40];
 
 	jsonw_name(wr, "raw_calibration_data");
@@ -1492,14 +1490,6 @@ get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info
 			 xbuf[0], xbuf[1], xbuf[2], xbuf[3]);
 		jsonw_string_field(wr, json_field_name, json_str);
 
-		rx_pwr.ieee.negative = (xbuf[0] & 0x80) >> 7;
-		rx_pwr.ieee.exponent = (((xbuf[0] & 0x7f) << 1) |
-					((xbuf[1] & 0x80) >> 7));
-		rx_pwr.ieee.mantissa += (((xbuf[1] & 0x7f) << 16) |
-					 (xbuf[2] << 8) | xbuf[3]);
-
-		// Populate in reverse to conform to SFF-8472 calibration constants table
-		c_consts->rx_pwr[SFP_CALIB_CONST_MAX - i] = rx_pwr;
 		cursor += SFP_CALIB_CONST_RX_PWR_SIZE;
 	}
 
@@ -1514,8 +1504,6 @@ get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info
 		snprintf(json_str, 40, "%02x %02x", xbuf[0], xbuf[1]);
 		jsonw_string_field(wr, json_field_name, json_str);
 
-		c_consts->slope_offs[i].slope =
-			(float)xbuf[0] + (float)xbuf[1]/256;
 		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
 
 		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
@@ -1528,7 +1516,6 @@ get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info
 			 ((uint8_t *)&offset)[1]);
 		jsonw_string_field(wr, json_field_name, json_str);
 
-		c_consts->slope_offs[i].offset = ntohs(offset);
 		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
 	}
 	jsonw_end_object(wr);
@@ -2153,11 +2140,13 @@ sfp_has_ddm(const struct rte_dev_eeprom_info *eeprom_info)
 }
 
 static void
-print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
-		 const struct rte_dev_eeprom_info *eeprom_info,
+print_sfp_status(bool up, struct xcvr_info *xcvr_info,
 		 bool include_static, json_writer_t *wr)
 {
-	struct sfp_calibration_constants c_consts, *c_const_p;
+	struct sfp_calibration_constants *c_const_p;
+	struct rte_dev_eeprom_info *eeprom_info = &xcvr_info->eeprom_info;
+	struct rte_eth_dev_module_info *module_info = &xcvr_info->module_info;
+
 	uint8_t diag_type;
 	int do_diag = 0;
 
@@ -2197,9 +2186,10 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	 * Request current measurements iff they are provided:
 	 */
 	if (do_diag != 0) {
+		c_const_p = &xcvr_info->c_consts;
+
 		if (diag_type & SFF_8472_DDM_EXTERNAL) {
-			c_const_p = &c_consts;
-			get_sfp_calibration_constants_json(eeprom_info, c_const_p, wr);
+			get_sfp_calibration_constants_json(eeprom_info, wr);
 			print_sfp_calibration_constants(c_const_p, wr);
 		} else
 			c_const_p = NULL;
@@ -2219,7 +2209,7 @@ print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 }
 
 static void
-print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
+print_qsfp_status(bool up, struct rte_dev_eeprom_info *eeprom_info,
 		  bool include_static, json_writer_t *wr)
 {
 	uint8_t dev_tech = 0;
@@ -2278,8 +2268,7 @@ print_qsfp_status(bool up, const struct rte_dev_eeprom_info *eeprom_info,
 
 
 void
-sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
-	   const struct rte_dev_eeprom_info *eeprom_info,
+sfp_status(bool up, struct xcvr_info *xcvr_info,
 	   bool include_static, json_writer_t *wr)
 {
 	uint8_t id_byte;
@@ -2292,7 +2281,7 @@ sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	 * this might happen in case of empty transceiver slot.
 	 */
 	id_byte = 0;
-	get_eeprom_data(eeprom_info, SFF_8472_BASE, SFF_8472_ID, 1,
+	get_eeprom_data(&xcvr_info->eeprom_info, SFF_8472_BASE, SFF_8472_ID, 1,
 			&id_byte);
 	if (id_byte == 0)
 		return;
@@ -2301,10 +2290,10 @@ sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
 	case SFF_8024_ID_QSFP:
 	case SFF_8024_ID_QSFPPLUS:
 	case SFF_8024_ID_QSFP28:
-		print_qsfp_status(up, eeprom_info, include_static, wr);
+		print_qsfp_status(up, &xcvr_info->eeprom_info, include_static, wr);
 		break;
 	default:
-		print_sfp_status(up, module_info, eeprom_info, include_static, wr);
+		print_sfp_status(up, xcvr_info, include_static, wr);
 	}
 }
 
