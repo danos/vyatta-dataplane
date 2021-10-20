@@ -1,3 +1,9 @@
+vyatta-dataplane (3.12.55.8) unstable; urgency=medium
+
+  * Create new service to setup platform-specific dataplane parameters
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Wed, 20 Oct 2021 10:39:34 +0100
+
 vyatta-dataplane (3.12.55.7) unstable; urgency=medium
 
   [ Thomas Kiely ]
