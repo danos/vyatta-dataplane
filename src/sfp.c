@@ -572,6 +572,14 @@ find_zero_bit(struct _nv *x, int value, int sz)
 	return NULL;
 }
 
+static const char
+*sff_8024_id_str(int index)
+{
+	if (index >= 0 && index <= SFF_8024_ID_LAST)
+		return sff_8024_id[index];
+	return "Unknown";
+}
+
 static inline double
 mW_to_dBm(double val)
 {
@@ -585,7 +593,7 @@ convert_sff_identifier(json_writer_t *wr, uint8_t value)
 
 	x = NULL;
 	if (value <= SFF_8024_ID_LAST)
-		x = sff_8024_id[value];
+		x = sff_8024_id_str(value);
 	else {
 		if (value > 0x80)
 			x = "Vendor specific";
