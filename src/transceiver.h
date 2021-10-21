@@ -15,6 +15,34 @@
 
 #define SFP_DYN_DATA_MAX_LEN     128
 
+#define SFP_CALIB_CONST_RX_PWR_SIZE    4
+#define SFP_CALIB_CONST_RX_PWR_CNT     5
+#define SFP_CALIB_CONST_SL_OFF_START   0x4c
+#define SFP_CALIB_CONST_SL_OFF_SIZE    2
+
+/*
+ * Type of calibration constant
+ * The enum values are in the order in which the
+ * entries appear in EEPROM
+ */
+enum sfp_calib_const_type {
+	SFP_CALIB_CONST_LASER_BIAS,
+	SFP_CALIB_CONST_TX_PWR,
+	SFP_CALIB_CONST_TEMPERATURE,
+	SFP_CALIB_CONST_VOLTAGE,
+	SFP_CALIB_CONST_MAX
+};
+
+struct slope_off {
+	float    slope;
+	int16_t  offset;
+};
+
+struct sfp_calibration_constants {
+	union ieee754_float rx_pwr[SFP_CALIB_CONST_RX_PWR_CNT];
+	struct slope_off    slope_offs[SFP_CALIB_CONST_MAX];
+};
+
 struct xcvr_info {
 	struct rte_eth_dev_module_info module_info;
 	struct rte_dev_eeprom_info     eeprom_info;

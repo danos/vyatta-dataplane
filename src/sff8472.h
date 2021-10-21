@@ -477,32 +477,6 @@ enum {
 	SFF_8024_ID_LAST	= SFF_8024_ID_QSFP_DD
 	};
 
-static const char *sff_8024_id[SFF_8024_ID_LAST + 1] = {"Unknown",
-					     "GBIC",
-					     "SFF",
-					     "SFP/SFP+/SFP28",
-					     "XBI",
-					     "Xenpak",
-					     "XFP",
-					     "XFF",
-					     "XFP-E",
-					     "XPAK",
-					     "X2",
-					     "DWDM-SFP/SFP+",
-					     "QSFP",
-					     "QSFP+",
-					     "CXP",
-					     "HD4X",
-					     "HD8X",
-					     "QSFP28",
-					     "CXP2",
-					     "CDFP",
-					     "SMM4",
-					     "SMM8",
-					     "CDFP3",
-					     "microQSFP",
-					     "QSFP-DD"};
-
 /* Keep compatibility with old definitions */
 #define	SFF_8472_ID_UNKNOWN	SFF_8024_ID_UNKNOWN
 #define	SFF_8472_ID_GBIC	SFF_8024_ID_GBIC
@@ -518,8 +492,6 @@ static const char *sff_8024_id[SFF_8024_ID_LAST + 1] = {"Unknown",
 #define	SFF_8472_ID_DWDM_SFP	SFF_8024_ID_DWDM_SFP
 #define	SFF_8472_ID_QSFP	SFF_8024_ID_QSFP
 #define	SFF_8472_ID_LAST	SFF_8024_ID_LAST
-
-#define	sff_8472_id		sff_8024_id
 
 /*
  * Table 3.9 Diagnostic Monitoring Type (byte 92)

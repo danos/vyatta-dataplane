@@ -430,23 +430,31 @@ static struct _nv sff_8636_dev_tech[] = {
 	{ 0xf, "copper_linear_equalizer" },
 };
 
-#define SFP_CALIB_CONST_RX_PWR_SIZE    4
-#define SFP_CALIB_CONST_RX_PWR_CNT     5
-#define SFP_CALIB_CONST_SL_OFF_START   0x4c
-#define SFP_CALIB_CONST_SL_OFF_SIZE    2
-
-/*
- * Type of calibration constant
- * The enum values are in the order in which the
- * entries appear in EEPROM
- */
-enum sfp_calib_const_type {
-	SFP_CALIB_CONST_LASER_BIAS,
-	SFP_CALIB_CONST_TX_PWR,
-	SFP_CALIB_CONST_TEMPERATURE,
-	SFP_CALIB_CONST_VOLTAGE,
-	SFP_CALIB_CONST_MAX
-};
+static const char *sff_8024_id[SFF_8024_ID_LAST + 1] = {"Unknown",
+					     "GBIC",
+					     "SFF",
+					     "SFP/SFP+/SFP28",
+					     "XBI",
+					     "Xenpak",
+					     "XFP",
+					     "XFF",
+					     "XFP-E",
+					     "XPAK",
+					     "X2",
+					     "DWDM-SFP/SFP+",
+					     "QSFP",
+					     "QSFP+",
+					     "CXP",
+					     "HD4X",
+					     "HD8X",
+					     "QSFP28",
+					     "CXP2",
+					     "CDFP",
+					     "SMM4",
+					     "SMM8",
+					     "CDFP3",
+					     "microQSFP",
+					     "QSFP-DD"};
 
 enum PWR_TYPE {
 	TX_PWR = 0,
@@ -458,16 +466,6 @@ static const char *sfp_calib_const_strs[SFP_CALIB_CONST_MAX] = {
 	"tx_pwr",
 	"temperature",
 	"voltage"
-};
-
-struct slope_off {
-	float    slope;
-	int16_t  offset;
-};
-
-struct sfp_calibration_constants {
-	union ieee754_float rx_pwr[SFP_CALIB_CONST_RX_PWR_CNT];
-	struct slope_off    slope_offs[SFP_CALIB_CONST_MAX];
 };
 
 enum qsfp_aw_source {
