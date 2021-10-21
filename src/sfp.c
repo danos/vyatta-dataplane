@@ -2325,7 +2325,7 @@ get_converted_string(enum SFF_8472_AW_FLAG flag, uint8_t *xbuf,
 			converted = POWER_MIN;
 		else
 			converted = mW_to_dBm(converted);
-		snprintf(str, string_size, "%0.4fdBm", converted);
+		snprintf(str, string_size, "%0.4f dBm", converted);
 
 		break;
 
@@ -2336,28 +2336,28 @@ get_converted_string(enum SFF_8472_AW_FLAG flag, uint8_t *xbuf,
 			converted = POWER_MIN;
 		else
 			converted = mW_to_dBm(converted);
-		snprintf(str, string_size, "%0.4fdBm", converted);
+		snprintf(str, string_size, "%0.4f dBm", converted);
 
 		break;
 
 	case SFF_8472_AW_TEMP_HIGH:
 	case SFF_8472_AW_TEMP_LOW:
 		converted = __convert_sff_temp(xbuf, c_consts);
-		snprintf(str, string_size, "%0.4fC", converted);
+		snprintf(str, string_size, "%0.4f C", converted);
 
 		break;
 
 	case SFF_8472_AW_VCC_HIGH:
 	case SFF_8472_AW_VCC_LOW:
 		converted = __convert_sff_voltage(xbuf, c_consts);
-		snprintf(str, string_size, "%0.4fV", converted/10000);
+		snprintf(str, string_size, "%0.4f V", converted/10000);
 
 		break;
 
 	case SFF_8472_AW_TX_BIAS_HIGH:
 	case SFF_8472_AW_TX_BIAS_LOW:
 		converted = __convert_sff_bias(xbuf, c_consts);
-		snprintf(str, string_size, "%0.4fmA", converted);
+		snprintf(str, string_size, "%0.4f mA", converted);
 
 		break;
 	}
