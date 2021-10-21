@@ -1427,7 +1427,7 @@ print_qsfp_encoding(const struct rte_dev_eeprom_info *eeprom_info,
 	convert_sff_8436_encoding(wr, xbuf);
 }
 
-static void
+void
 get_sfp_calibration_constants(const struct rte_dev_eeprom_info *eeprom_info,
 			      struct sfp_calibration_constants *c_consts)
 {
@@ -2141,6 +2141,18 @@ static void print_sfp_status_byte(const struct rte_dev_eeprom_info *eeprom_info,
 	jsonw_end_object(wr);
 }
 
+bool
+sfp_has_ddm(const struct rte_dev_eeprom_info *eeprom_info)
+{
+	uint8_t diag_type;
+
+	get_eeprom_data(eeprom_info, SFF_8472_BASE, SFF_8472_DIAG_TYPE,
+			1, &diag_type);
+
+	if (diag_type & SFF_8472_DDM_DONE)
+		return true;
+	return false;
+}
 
 static void
 print_sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
@@ -2368,7 +2380,6 @@ static void
 sfp_get_value(struct xcvr_info *xcvr_info,
 	      enum SFF_8472_AW_FLAG flag,
 	      char *val_str, int string_size,
-	      struct sfp_calibration_constants *c_consts,
 	      bool intf_up)
 {
 	uint8_t xbuf[2] = { 0 };
@@ -2419,7 +2430,7 @@ sfp_get_value(struct xcvr_info *xcvr_info,
 		return;
 	}
 
-	get_converted_string(flag, xbuf, c_consts, val_str, string_size, intf_up);
+	get_converted_string(flag, xbuf, &xcvr_info->c_consts, val_str, string_size, intf_up);
 }
 
 static int
@@ -2474,7 +2485,6 @@ sfp_get_thr_value(struct xcvr_info *xcvr_info,
 		  enum SFF_8472_AW_FLAG flag,
 		  bool alarm,
 		  char *thr_str, int string_size,
-		  struct sfp_calibration_constants *c_consts,
 		  bool intf_up)
 {
 	uint8_t xbuf[2] = { 0 };
@@ -2483,7 +2493,7 @@ sfp_get_thr_value(struct xcvr_info *xcvr_info,
 			    sfp_get_aw_thr_flag(flag, alarm), 2, xbuf))
 		return;
 
-	get_converted_string(flag, xbuf, c_consts, thr_str, string_size, intf_up);
+	get_converted_string(flag, xbuf, &xcvr_info->c_consts, thr_str, string_size, intf_up);
 }
 
 static void
@@ -2495,13 +2505,6 @@ sfp_process_aw_flag_change(struct ifnet *ifp, struct xcvr_info *xcvr_info,
 	uint16_t flag;
 	bool intf_up;
 	char *aw_str = (alarm ? "alarm" : "warning");
-	struct sfp_calibration_constants c_consts, *c_const_p;
-
-	if (SFF_8472_DDM_EXTERNAL) {
-		c_const_p = &c_consts;
-		get_sfp_calibration_constants(&xcvr_info->eeprom_info, c_const_p);
-	} else
-		c_const_p = NULL;
 
 	for (x = aw_flags; x->n != NULL; x++) {
 		flag = 1 << x->v;
@@ -2510,9 +2513,9 @@ sfp_process_aw_flag_change(struct ifnet *ifp, struct xcvr_info *xcvr_info,
 
 		intf_up = (ifp->if_flags & IFF_UP) ? true : false;
 		sfp_get_value(xcvr_info, x->v, val_str, sizeof(val_str),
-			      c_const_p, intf_up);
+			      intf_up);
 		sfp_get_thr_value(xcvr_info, x->v, alarm, thr_str,
-				  sizeof(thr_str), c_const_p, intf_up);
+				  sizeof(thr_str), intf_up);
 
 		RTE_LOG(ERR, SFP_MON,
 			"%s %s %s on %s. Current value = %s, %s %s threshold = %s\n",

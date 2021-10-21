@@ -8,6 +8,7 @@
 
 #define TRANSCEIVER_H
 
+#include <ieee754.h>
 #include <json_writer.h>
 #include <rte_dev_info.h>
 #include "if_var.h"
@@ -24,11 +25,13 @@ struct xcvr_info {
 
 	/* offset from the beginning of the EEPROM area */
 	uint16_t offset;
+
+	/* Calibration constant data */
+	struct sfp_calibration_constants c_consts;
 };
 
 void
-sfp_status(bool up, const struct rte_eth_dev_module_info *module_info,
-	   const struct rte_dev_eeprom_info *eeprom_info, bool include_static,
+sfp_status(bool up, struct xcvr_info *xcvr_info, bool include_static,
 	   json_writer_t *wr);
 
 int sfpd_open_socket(void);
@@ -41,5 +44,12 @@ int cmd_sfp_permit_op(FILE *f, int argc, char **argv);
 void sfpd_process_presence_update(void);
 
 int cmd_sfp_monitor_op(FILE *f, int argc, char **argv);
+
+void
+get_sfp_calibration_constants(const struct rte_dev_eeprom_info *eeprom_info,
+			      struct sfp_calibration_constants *c_consts);
+
+bool
+sfp_has_ddm(const struct rte_dev_eeprom_info *eeprom_info);
 
 #endif /* TRANSCEIVER_H */

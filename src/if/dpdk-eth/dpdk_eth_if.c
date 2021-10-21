@@ -23,6 +23,7 @@
 #include "l2_rx_fltr.h"
 #include "lag.h"
 #include "qos.h"
+#include "sff8472.h"
 #include "vhost.h"
 #include "vplane_debug.h"
 #include "vplane_log.h"
@@ -1150,6 +1151,11 @@ int dpdk_eth_if_get_xcvr_info(struct ifnet *ifp)
 			 ifp->if_name);
 		return rv;
 	}
+
+	/* Set the calibration constant data */
+	if (xcvr_info->module_info.type == RTE_ETH_MODULE_SFF_8472 &&
+	    sfp_has_ddm(&xcvr_info->eeprom_info))
+		get_sfp_calibration_constants(&xcvr_info->eeprom_info, &xcvr_info->c_consts);
 
 	return 0;
 }
