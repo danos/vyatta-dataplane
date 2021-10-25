@@ -1065,7 +1065,7 @@ static bool sfp_permit_config_absent(void)
 	return !sfp_permit_mismatch_cfg_present && permit_list_empty;
 }
 
-static void sfp_permit_dump_devices(json_writer_t *wr)
+static void sfp_permit_dump_devices(json_writer_t *wr, const char *ifname)
 {
 	struct cds_lfht_iter iter;
 	struct sfp_intf_record *sfp;
@@ -1090,8 +1090,10 @@ static void sfp_permit_dump_devices(json_writer_t *wr)
 	jsonw_start_array(wr);
 
 	if (sfp_ports_tbl)
-		cds_lfht_for_each_entry(sfp_ports_tbl, &iter, sfp, hnode)
-			sfp_jsonw_device(wr, sfp);
+		cds_lfht_for_each_entry(sfp_ports_tbl, &iter, sfp, hnode) {
+			if (ifname == NULL || strncmp(sfp->intf->if_name, ifname, IFNAMSIZ) == 0)
+				sfp_jsonw_device(wr, sfp);
+		}
 
 	jsonw_end_array(wr);
 
@@ -1208,6 +1210,7 @@ sfp_permit_match_check_cmd(const char *match_string, json_writer_t *wr)
 int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 {
 	json_writer_t *wr;
+	char *ifname = NULL;
 
 	/* Init list heads if not aleady done, so we don't
 	 * need to check they are setup.
@@ -1238,7 +1241,9 @@ int cmd_sfp_permit_op(FILE *f, int argc __unused, char **argv)
 		}
 
 		if (!strcmp(argv[2], "devices")) {
-			sfp_permit_dump_devices(wr);
+			if (argc == 4)
+				ifname = argv[3];
+			sfp_permit_dump_devices(wr, ifname);
 		}
 
 		goto done;
