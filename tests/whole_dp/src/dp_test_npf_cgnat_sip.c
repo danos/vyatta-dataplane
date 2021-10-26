@@ -807,3 +807,136 @@ DP_START_TEST(sip6, test)
 
 } DP_END_TEST;
 
+/*
+ * sip7. Tests csip_via_find_host_port
+ */
+DP_DECL_TEST_CASE(cgn_sip, sip7, NULL, NULL);
+DP_START_TEST(sip7, test)
+{
+	struct bstr pre = BSTR_INIT;
+	struct bstr host = BSTR_INIT;
+	struct bstr port = BSTR_INIT;
+	struct bstr post = BSTR_INIT;
+	bool ok;
+
+	/* IP addr + port */
+
+	ok = csip_via_find_host_port(BSTRL("Via: SIP/2.0/UDP"
+					   " 192.0.2.103:5060;branch=z9hG4bKfw19b\r\n"),
+				 &pre, &host, &port, &post);
+	dp_test_fail_unless(ok, "Failed to find IP address and port");
+
+	ok = bstr_eq(&pre, BSTRL("Via: SIP/2.0/UDP "));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Pre exp \"%s\" got \"%*.*s\"",
+			    "Via: SIP/2.0/UDP ", pre.len, pre.len, pre.buf);
+
+	ok = bstr_eq(&host, BSTRL("192.0.2.103"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Host exp \"%s\" got \"%*.*s\"",
+			    "192.0.2.103", host.len, host.len, host.buf);
+
+	ok = bstr_eq(&port, BSTRL("5060"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Port exp \"%s\" got \"%*.*s\"",
+			    "5060", port.len, port.len, port.buf);
+
+	ok = bstr_eq(&post, BSTRL(";branch=z9hG4bKfw19b\r\n"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Post exp \"%s\" got \"%*.*s\"",
+			    ";branch=z9hG4bKfw19b\r\n",
+			    post.len, post.len, post.buf);
+
+	/* IP addr */
+
+	pre = BSTR_INIT;
+	host = BSTR_INIT;
+	port = BSTR_INIT;
+	post = BSTR_INIT;
+
+	ok = csip_via_find_host_port(BSTRL("Via: SIP/2.0/TCP 192.0.2.103;branch=z9hG4bKfw19b\r\n"),
+				 &pre, &host, &port, &post);
+	dp_test_fail_unless(ok, "Failed to find IP address and port");
+
+	ok = bstr_eq(&pre, BSTRL("Via: SIP/2.0/TCP "));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Pre exp \"%s\" got \"%*.*s\"",
+			    "Via: SIP/2.0/TCP ", pre.len, pre.len, pre.buf);
+
+	ok = bstr_eq(&host, BSTRL("192.0.2.103"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Host exp \"%s\" got \"%*.*s\"",
+			    "192.0.2.103", host.len, host.len, host.buf);
+
+	dp_test_fail_unless(port.len == 0, "Port len exp 0, got %d", port.len);
+
+	ok = bstr_eq(&post, BSTRL(";branch=z9hG4bKfw19b\r\n"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Post exp \"%s\" got \"%*.*s\"",
+			    ";branch=z9hG4bKfw19b\r\n",
+			    post.len, post.len, post.buf);
+	/* FQDN + port */
+
+	pre = BSTR_INIT;
+	host = BSTR_INIT;
+	port = BSTR_INIT;
+	post = BSTR_INIT;
+
+	ok = csip_via_find_host_port(BSTRL("Via: SIP/2.0/ UDP"
+					   " foo.bar.com:65512\r\n"),
+				 &pre, &host, &port, &post);
+	dp_test_fail_unless(ok, "Failed to find IP address and port");
+
+	ok = bstr_eq(&pre, BSTRL("Via: SIP/2.0/ UDP "));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Pre exp \"%s\" got \"%*.*s\"",
+			    "Via: SIP/2.0/ UDP ", pre.len, pre.len, pre.buf);
+
+	ok = bstr_eq(&host, BSTRL("foo.bar.com"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Host exp \"%s\" got \"%*.*s\"",
+			    "foo.bar.com", host.len, host.len, host.buf);
+
+	ok = bstr_eq(&port, BSTRL("65512"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Port exp \"%s\" got \"%*.*s\"",
+			    "65512", port.len, port.len, port.buf);
+
+	ok = bstr_eq(&post, BSTRL("\r\n"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Post exp \"%s\" got \"%*.*s\"",
+			    "\r\n", post.len, post.len, post.buf);
+
+	/* FQDN + port */
+
+	pre = BSTR_INIT;
+	host = BSTR_INIT;
+	port = BSTR_INIT;
+	post = BSTR_INIT;
+
+	ok = csip_via_find_host_port(BSTRL("Via: SIP/2.0/UDP\r\n"
+					   " foo.bar.com:65512\r\n"),
+				 &pre, &host, &port, &post);
+	dp_test_fail_unless(ok, "Failed to find IP address and port");
+
+	ok = bstr_eq(&pre, BSTRL("Via: SIP/2.0/UDP\r\n "));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Pre exp \"%s\" got \"%*.*s\"",
+			    "Via: SIP/2.0/UDP\r\n ", pre.len, pre.len, pre.buf);
+
+	ok = bstr_eq(&host, BSTRL("foo.bar.com"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Host exp \"%s\" got \"%*.*s\"",
+			    "foo.bar.com", host.len, host.len, host.buf);
+
+	ok = bstr_eq(&port, BSTRL("65512"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Port exp \"%s\" got \"%*.*s\"",
+			    "65512", port.len, port.len, port.buf);
+
+	ok = bstr_eq(&post, BSTRL("\r\n"));
+	dp_test_fail_unless(ok, "Failed locating IP addr and port, "
+			    "Post exp \"%s\" got \"%*.*s\"",
+			    "\r\n", post.len, post.len, post.buf);
+
+} DP_END_TEST;

@@ -416,3 +416,70 @@ error:
 	*new = tmp;
 	return bstr_addbuf(new, line);
 }
+
+/*
+ * Locate the host and port in a Via header line
+ *
+ * The Via header line is the only SIP line not to use a SIP URI, and hence we
+ * have no easy way to locate the Via host.  Instead, we locate the whitespace
+ * that follows the second '/' character.
+ *
+ * We set the 4 bstrs to point to the constituent parts of the line.  If any
+ * part is not found then it is left empty (len=0).
+ *
+ * e.g. "Via: SIP/2.0/UDP 192.0.2.103:5060;branch=z9hG4bKfw19b\r\n"
+ *       ^                ^           ^   ^
+ *       pre              host      port  post
+ */
+bool csip_via_find_host_port(struct bstr const *line, struct bstr *pre, struct bstr *host,
+			     struct bstr *port, struct bstr *post)
+{
+	int offs, tmp;
+
+	/* Find first '/' */
+	offs = bstr_find_term(line, '/');
+	if (offs < 0)
+		return false;
+
+	/* Find second '/' */
+	offs = bstr_find_term_offs(line, '/', offs + 1);
+	if (offs < 0)
+		return false;
+
+	/* Move past any WSP before the transport string */
+	tmp = bstr_find_next_non_wsp(line, offs + 1);
+	if (tmp > 0)
+		offs = tmp;
+
+	/* Find WSP after the transport string */
+	offs = bstr_find_next_wsp(line, offs + 1);
+	if (offs < 0)
+		return false;
+
+	/* Split line after the whitespace */
+	if (!bstr_split_length(line, offs + 1, pre, host))
+		return false;
+
+	/* Trim any LWS before host.  'host' should now start with an IP addr or FQDN. */
+	if (!bstr_lws_ltrim(host))
+		return false;
+
+	/* Is a port number present? */
+	if (!bstr_split_term_after(host, ':', host, post)) {
+
+		/* No colon found. Split host from remainder of line.  */
+		if (!bstr_split_terms_before(host, BSTRL(" ;\r"), host, post))
+			return false;
+
+		return true;
+	}
+
+	/* Drop the colon at the end of 'host' */
+	bstr_drop_right(host, 1);
+
+	/* Split port from remainder of line. */
+	if (!bstr_split_terms_before(post, BSTRL(" ;\r"), port, post))
+		return false;
+
+	return true;
+}
