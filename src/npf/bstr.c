@@ -36,6 +36,14 @@
 
 #define VSNPRINTF		vsnprintf
 
+
+static inline uint8_t ascii_toupper(uint8_t c)
+{
+	if (c >= 'a' && c <= 'z')
+		return c - ('a' - 'A');
+	return c;
+}
+
 /*
  * Ensure that ->buf is always non NULL and '\0' terminated.
  */
@@ -269,13 +277,6 @@ bool bstr_prefix(struct bstr const *text, struct bstr const *prefix)
 		return false;
 
 	return (memcmp(text->buf, prefix->buf, prefix->len) == 0);
-}
-
-static char ascii_toupper(char v)
-{
-	if (v >= 'a' && v <= 'z')
-		return v - ('a' - 'A');
-	return v;
 }
 
 /*
