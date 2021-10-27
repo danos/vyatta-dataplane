@@ -63,7 +63,7 @@ enum nbr_state {
 	LLINFO_MAX		= 5 /* Must be last */
 };
 
-const char *nd_state[LLINFO_MAX];
+extern const char *nd_state[LLINFO_MAX];
 
 /*
  * Generic neighbor ND/ARP entry
