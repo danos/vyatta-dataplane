@@ -279,7 +279,13 @@ int bstr_find_str_offs(struct bstr const *hs, struct bstr const *nd,
 /* Walk along parent, looking for one of the terminators */
 int bstr_find_terms(struct bstr const *parent, struct bstr const *terms);
 
+/* Search for a terminating character in a string */
 int bstr_find_term(struct bstr const *parent, uint8_t terminator);
+
+/* Search for a terminating character in a string, starting at an offset */
+int bstr_find_term_offs(struct bstr const *parent, uint8_t terminator,
+			uint32_t offs);
+
 
 /* Does the string start with this character */
 static inline bool bstr_first_eq(struct bstr const *bs, uint8_t val)

@@ -546,13 +546,30 @@ int bstr_find_terms(struct bstr const *parent, struct bstr const *terms)
 	return -1;
 }
 
-int bstr_find_term(struct bstr const *parent, uint8_t terminator)
+/* Search for a terminating character in a string */
+static inline int _bstr_find_term(struct bstr const *parent, uint8_t terminator,
+				  uint32_t offs)
 {
-	uint8_t *match = memchr(parent->buf, terminator, parent->len);
+	if (offs >= (uint32_t)parent->len)
+		return -1;
+
+	uint8_t *match = memchr(parent->buf + offs, terminator, parent->len - offs);
 	if (!match)
 		return -1;
 
 	return match - parent->buf;
+}
+
+/* Search for a terminating character in a string */
+int bstr_find_term(struct bstr const *parent, uint8_t terminator)
+{
+	return _bstr_find_term(parent, terminator, 0);
+}
+
+/* Search for a terminating character in a string, starting at an offset */
+int bstr_find_term_offs(struct bstr const *parent, uint8_t terminator, uint32_t offs)
+{
+	return _bstr_find_term(parent, terminator, offs);
 }
 
 /*
