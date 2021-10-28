@@ -494,21 +494,38 @@ bool bstr_split_ascii_non_alpha_after(struct bstr const *parent,
 	return bstr_split_length(parent, index + 1, headp, tailp);
 }
 
-int bstr_find_str(struct bstr const *hs, struct bstr const *nd)
+/* Search for string within a string */
+static inline int _bstr_find_str(struct bstr const *hs, struct bstr const *nd,
+				 uint32_t offs)
 {
+	uint32_t const hlen = hs->len;
+	uint32_t const nlen = nd->len;
+
 	/* Empty needle always matches */
-	if (!nd->len)
+	if (!nlen)
 		return 0;
 
 	/* An empty haystack can never match, nor can too big a needle */
-	if (!hs->len || nd->len > hs->len)
+	if (offs >= hlen || nlen > (hlen - offs))
 		return -1;
 
-	uint8_t *match = memmem(hs->buf, hs->len, nd->buf, nd->len);
+	uint8_t *match = memmem(hs->buf + offs, hlen - offs, nd->buf, nlen);
 	if (!match)
 		return -1;
 
 	return match - hs->buf;
+}
+
+/* Search for string within a string */
+int bstr_find_str(struct bstr const *hs, struct bstr const *nd)
+{
+	return _bstr_find_str(hs, nd, 0);
+}
+
+/* Search for string within a string, starting at an offset */
+int bstr_find_str_offs(struct bstr const *hs, struct bstr const *nd, uint32_t offs)
+{
+	return _bstr_find_str(hs, nd, offs);
 }
 
 /* Walk along parent, looking for one of the terminators */

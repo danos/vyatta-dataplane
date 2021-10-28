@@ -269,8 +269,12 @@ bool bstr_prefix(struct bstr const *text, struct bstr const *prefix);
 /* Does the text start with the provided prefix */
 bool bstr_prefix_ascii_case(struct bstr const *text, struct bstr const *prefix);
 
-/* Find offset of first occurrence of a needle in a haystack (c.f. strstr) */
+/* Search for string within a string (c.f. strstr) */
 int bstr_find_str(struct bstr const *hs, struct bstr const *nd);
+
+/* Search for string within a string, starting at an offset */
+int bstr_find_str_offs(struct bstr const *hs, struct bstr const *nd,
+		       uint32_t offs);
 
 /* Walk along parent, looking for one of the terminators */
 int bstr_find_terms(struct bstr const *parent, struct bstr const *terms);
