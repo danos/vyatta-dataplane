@@ -330,7 +330,7 @@ bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
 		parent = tail;
 
 		/* Look for the end of host:port */
-		if (bstr_split_terms(&parent, TERMS, &head, &tail)) {
+		if (bstr_split_terms_before(&parent, TERMS, &head, &tail)) {
 			/* There are some bytes after the port number */
 			*port = head;
 			*post = tail;
@@ -338,7 +338,7 @@ bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
 			/* The port number the last thing in 'parent' */
 			*port = parent;
 
-	} else if (bstr_split_terms(&parent, TERMS, &head, &tail)) {
+	} else if (bstr_split_terms_before(&parent, TERMS, &head, &tail)) {
 		/* No port number.  We just have a host, plus whatever is left */
 		*host = head;
 		*post = tail;

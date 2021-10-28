@@ -272,6 +272,9 @@ bool bstr_prefix_ascii_case(struct bstr const *text, struct bstr const *prefix);
 /* Find offset of first occurrence of a needle in a haystack (c.f. strstr) */
 int bstr_find_str(struct bstr const *hs, struct bstr const *nd);
 
+/* Walk along parent, looking for one of the terminators */
+int bstr_find_terms(struct bstr const *parent, struct bstr const *terms);
+
 int bstr_find_term(struct bstr const *parent, uint8_t terminator);
 
 /* Does the string start with this character */
@@ -344,9 +347,13 @@ bool bstr_split_term_after(struct bstr const *parent, uint8_t terminator,
 bool bstr_split_term_before(struct bstr const *parent, uint8_t terminator,
 			    struct bstr *headp, struct bstr *tailp);
 
-/* bstr_split_term() for the first matching terminator */
-bool bstr_split_terms(struct bstr const *parent, struct bstr const *terminators,
-		      struct bstr *headp, struct bstr *tailp);
+/* Split before first terminating character */
+bool bstr_split_terms_before(struct bstr const *parent, struct bstr const *terminators,
+			     struct bstr *headp, struct bstr *tailp);
+
+/* Split after first terminating character */
+bool bstr_split_terms_after(struct bstr const *parent, struct bstr const *terms,
+			    struct bstr *headp, struct bstr *tailp);
 
 /* Create unmanaged splits across 'parent', tail start after last preceeder */
 

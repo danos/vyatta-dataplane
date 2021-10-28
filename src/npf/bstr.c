@@ -383,30 +383,32 @@ bool bstr_split_prec(struct bstr const *parent, uint8_t preceder,
 	return bstr_split_length(parent, index + 1, headp, tailp);
 }
 
-/* Terminator will be first char in tail */
-bool bstr_split_terms(struct bstr const *parent, struct bstr const *terms,
-		      struct bstr *headp, struct bstr *tailp)
+/* Split before first terminating character */
+bool bstr_split_terms_before(struct bstr const *parent, struct bstr const *terms,
+			     struct bstr *headp, struct bstr *tailp)
 {
 	if (!parent->len || !terms->len)
 		return false;
 
-	/* Walk along parent, looking for terminator */
-	int const plen = parent->len;
-	int const tlen = terms->len;
-	uint8_t *pc = parent->buf;
-	int pi, ti;
+	int index = bstr_find_terms(parent, terms);
+	if (index < 0)
+		return false;
 
-	for (pi = 0; pi < plen; ++pi, ++pc) {
-		uint8_t *tc = terms->buf;
-		for (ti = 0; ti < tlen; ++ti, ++tc) {
-			if (*pc == *tc)
-				goto found;
-		}
-	}
-	return false;
+	return bstr_split_length(parent, index, headp, tailp);
+}
 
-found:
-	return bstr_split_length(parent, pi, headp, tailp);
+/* Split after first terminating character */
+bool bstr_split_terms_after(struct bstr const *parent, struct bstr const *terms,
+			    struct bstr *headp, struct bstr *tailp)
+{
+	if (!parent->len || !terms->len)
+		return false;
+
+	int index = bstr_find_terms(parent, terms);
+	if (index < 0)
+		return false;
+
+	return bstr_split_length(parent, index + 1, headp, tailp);
 }
 
 bool bstr_split_after_substr(struct bstr const *parent, struct bstr const *sub,
@@ -507,6 +509,24 @@ int bstr_find_str(struct bstr const *hs, struct bstr const *nd)
 		return -1;
 
 	return match - hs->buf;
+}
+
+/* Walk along parent, looking for one of the terminators */
+int bstr_find_terms(struct bstr const *parent, struct bstr const *terms)
+{
+	int const plen = parent->len;
+	int const tlen = terms->len;
+	uint8_t *pc = parent->buf;
+	int pi, ti;
+
+	for (pi = 0; pi < plen; ++pi, ++pc) {
+		uint8_t *tc = terms->buf;
+		for (ti = 0; ti < tlen; ++ti, ++tc) {
+			if (*pc == *tc)
+				return pi;
+		}
+	}
+	return -1;
 }
 
 int bstr_find_term(struct bstr const *parent, uint8_t terminator)
