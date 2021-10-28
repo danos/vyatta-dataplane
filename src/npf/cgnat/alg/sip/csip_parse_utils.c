@@ -91,7 +91,7 @@ bool csip_get_hline(struct bstr const *parent, struct bstr *headp, struct bstr *
 		cursor = tail;
 
 start:
-		if (!bstr_split_term(&cursor, '\n', &head, &tail))
+		if (!bstr_split_term_after(&cursor, '\n', &head, &tail))
 			return false;
 
 		/* Did we find '\r\n'? */
@@ -113,7 +113,7 @@ start:
  */
 bool csip_get_line(struct bstr const *parent, struct bstr *headp, struct bstr *tailp)
 {
-	if (!bstr_split_term(parent, '\n', headp, tailp))
+	if (!bstr_split_term_after(parent, '\n', headp, tailp))
 		return false;
 
 	/* Did we find '\r\n'? */
@@ -295,7 +295,7 @@ bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
 	 * everything up to and including the '@' char or "sip: sub-string.
 	 * tail will contain everything after.
 	 */
-	if (bstr_split_term(&parent, '@', &head, &tail)) {
+	if (bstr_split_term_after(&parent, '@', &head, &tail)) {
 		if (bstr_find_str(&head, BSTRL("sip:")) < 0) {
 			/* line has '@' but does not have 'sip:' */
 			*pre = *line;
@@ -318,7 +318,7 @@ bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
 	}
 
 	/* A colon indicates a port number is present  */
-	if (bstr_split_term(&parent, ':', &head, &tail)) {
+	if (bstr_split_term_after(&parent, ':', &head, &tail)) {
 
 		/* drop the colon */
 		if (!bstr_drop_right(&head, 1)) {

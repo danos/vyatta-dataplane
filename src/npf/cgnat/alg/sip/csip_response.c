@@ -65,14 +65,14 @@ uint csip_parse_response_start_line(struct bstr const *line, int *rc)
 	}
 
 	/* Move past version */
-	if (!bstr_split_term(line, ' ', &head, &tail)) {
+	if (!bstr_split_term_after(line, ' ', &head, &tail)) {
 		*rc = -ALG_ERR_SIP_UNSP;
 		return 0;
 	}
 
 	/* response code is second token; eat SP */
 	struct bstr code;
-	if (!bstr_split_term(&tail, ' ', &code, &tail) || code.len < 2) {
+	if (!bstr_split_term_after(&tail, ' ', &code, &tail) || code.len < 2) {
 		*rc = -ALG_ERR_SIP_PARSE_RSP;
 		return 0;
 	}

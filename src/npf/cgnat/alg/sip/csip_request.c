@@ -80,7 +80,7 @@ enum csip_req csip_parse_request_start_line(struct bstr const *line, int *rc)
 
 	/* Method is first token; eat SP */
 	struct bstr method;
-	if (!bstr_split_term(line, ' ', &method, &tail) || method.len < 2) {
+	if (!bstr_split_term_after(line, ' ', &method, &tail) || method.len < 2) {
 		*rc = -ALG_ERR_SIP_PARSE_REQ;
 		return SIP_REQ_NONE;
 	}
@@ -90,7 +90,7 @@ enum csip_req csip_parse_request_start_line(struct bstr const *line, int *rc)
 	struct bstr uri;
 
 	/* Ignore other non-sip schemes; eat SP */
-	if (!bstr_split_term(&tail, ' ', &uri, &tail) ||
+	if (!bstr_split_term_after(&tail, ' ', &uri, &tail) ||
 	    !bstr_prefix(&uri, BSTRL("sip:"))) {
 		*rc = -ALG_ERR_SIP_UNSP;
 		return SIP_REQ_NONE;

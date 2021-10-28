@@ -340,18 +340,32 @@ bool bstr_split_length(struct bstr const *parent, uint32_t len,
 	return true;
 }
 
-bool bstr_split_term(struct bstr const *parent, uint8_t terminator,
-		     struct bstr *headp, struct bstr *tailp)
+/* split after terminator */
+bool bstr_split_term_after(struct bstr const *parent, uint8_t terminator,
+			   struct bstr *headp, struct bstr *tailp)
 {
-	if (!parent->len) {
+	if (!parent->len)
 		return false;
-	}
 
 	int index = bstr_find_term(parent, terminator);
 	if (index < 0)
 		return false;
 
 	return bstr_split_length(parent, index + 1, headp, tailp);
+}
+
+/* split before terminator */
+bool bstr_split_term_before(struct bstr const *parent, uint8_t terminator,
+			    struct bstr *headp, struct bstr *tailp)
+{
+	if (!parent->len)
+		return false;
+
+	int index = bstr_find_term(parent, terminator);
+	if (index < 0)
+		return false;
+
+	return bstr_split_length(parent, index, headp, tailp);
 }
 
 bool bstr_split_prec(struct bstr const *parent, uint8_t preceder,

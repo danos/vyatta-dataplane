@@ -68,7 +68,7 @@ DP_START_TEST(bstr1, test)
 
 	/* bstr_split_term */
 
-	ok = bstr_split_term(&b, ':', &head, &tail);
+	ok = bstr_split_term_after(&b, ':', &head, &tail);
 	dp_test_fail_unless(ok, "error bstr_split_term");
 
 	ok = bstr_eq(&head, BSTRL("abcdef:"));

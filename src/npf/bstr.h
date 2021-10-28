@@ -338,8 +338,11 @@ bool bstr_split_length(struct bstr const *parent, uint32_t len,
 /* Create unmanaged splits across 'parent', head end at terminator */
 
 /* Initialise two sub-strings (slices) over the parent at the matching terminator, if found */
-bool bstr_split_term(struct bstr const *parent, uint8_t terminator,
-		     struct bstr *headp, struct bstr *tailp);
+bool bstr_split_term_after(struct bstr const *parent, uint8_t terminator,
+			   struct bstr *headp, struct bstr *tailp);
+
+bool bstr_split_term_before(struct bstr const *parent, uint8_t terminator,
+			    struct bstr *headp, struct bstr *tailp);
 
 /* bstr_split_term() for the first matching terminator */
 bool bstr_split_terms(struct bstr const *parent, struct bstr const *terminators,
