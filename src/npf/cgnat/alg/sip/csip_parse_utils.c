@@ -293,77 +293,56 @@ bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
  *  host - "192.0.2.4"
  *  port - "5060"
  *  post - ";tag=76341 SIP/2.0\r\n"
+ *
+ * Returns true if a host within a SIP URI has been found.  If false is
+ * returned then then pre, host, port, and post are left in unknown states.
  */
 bool csip_find_uri(struct bstr const *line, struct bstr *pre, struct bstr *host,
 		   struct bstr *port, struct bstr *post)
 {
-	struct bstr head = BSTR_INIT;
-	struct bstr tail = BSTR_INIT;
-	struct bstr parent;
+	struct bstr sip = BSTR_K("sip:");
+	int offs, tmp;
 
-	parent = *line;
+	/* Locate the 'sip:' that prefixes the SIP URI */
+	offs = bstr_find_str(line, &sip);
+	if (offs < 0)
+		return false;
+
+	/* Move past 'sip:' */
+	offs += sip.len;
+
+	/* An '@' may or may not be present */
+	tmp = bstr_find_term_offs(line, '@', offs);
+	if (tmp >= 0)
+		offs = tmp + 1;
 
 	/*
-	 * Split line on '@' char or "sip: sub-string.  head will contain
-	 * everything up to and including the '@' char or "sip: sub-string.
-	 * tail will contain everything after.
+	 * 'offs' should now be the offset of the host.  We can now split off
+	 * all the 'pre' text up to the host part.
 	 */
-	if (bstr_split_term_after(&parent, '@', &head, &tail)) {
-		if (bstr_find_str(&head, BSTRL("sip:")) < 0) {
-			/* line has '@' but does not have 'sip:' */
-			*pre = *line;
-			return false;
-		}
-	} else if (!bstr_split_after_substr(&parent, BSTRL("sip:"), &head, &tail)) {
-		/* SIP URI not present */
-		*pre = *line;
+	if (!bstr_split_length(line, offs, pre, host))
 		return false;
-	}
-	/* else line has 'sip:' but does not have '@' */
-
-	*pre = head;
-	parent = tail;
 
 	/* We ignore URIs with IPv6 addresses */
-	if (bstr_find_term(&parent, '[') >= 0) {
-		*pre = *line;
+	if (bstr_first_eq(host, '['))
 		return false;
-	}
 
 	/* A colon indicates a port number is present  */
-	if (bstr_split_term_after(&parent, ':', &head, &tail)) {
+	if (bstr_split_term_after(host, ':', host, port)) {
 
 		/* drop the colon */
-		if (!bstr_drop_right(&head, 1)) {
-			*pre = *line;
+		if (!bstr_drop_right(host, 1))
 			return false;
-		}
-
-		*host = head;
-		parent = tail;
 
 		/* Look for the end of host:port */
-		if (bstr_split_terms_before(&parent, TERMS, &head, &tail)) {
-			/* There are some bytes after the port number */
-			*port = head;
-			*post = tail;
-		} else
-			/* The port number the last thing in 'parent' */
-			*port = parent;
+		(void)bstr_split_terms_before(port, TERMS, port, post);
 
-	} else if (bstr_split_terms_before(&parent, TERMS, &head, &tail)) {
-		/* No port number.  We just have a host, plus whatever is left */
-		*host = head;
-		*post = tail;
 	} else
-		/* host is the last thing in 'parent' */
-		*host = parent;
+		(void)bstr_split_terms_before(host, TERMS, host, post);
 
 	/* host part must be at least this many chars long */
-	if (host->len < SIP_FQDN_MIN) {
-		*pre = *line;
-		return -1;
-	}
+	if (host->len < SIP_FQDN_MIN)
+		return false;
 
 	return true;
 }

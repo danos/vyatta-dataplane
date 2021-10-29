@@ -284,10 +284,10 @@ const struct ut_sip_uri uris[] = {
 	  .ok = false },
 
 	/* do not translate IPv6 URI */
-	{ .orig = BSTR_K("sip:6000@[2620:0:2ef0:7070:250:60ff:fe03:32b7];tag=76341\r\n"),
+	{ .orig = BSTR_K("sip:6000@[3620:0:2ef0:7070:250:60ff:fe03:32b7];tag=76341\r\n"),
 	  .host = BSTR_INIT,
 	  .port = BSTR_INIT,
-	  .trans = BSTR_K("sip:6000@[2620:0:2ef0:7070:250:60ff:fe03:32b7];tag=76341\r\n"),
+	  .trans = BSTR_K("sip:6000@[3620:0:2ef0:7070:250:60ff:fe03:32b7];tag=76341\r\n"),
 	  .ok = false },
 };
 
@@ -310,6 +310,13 @@ DP_START_TEST(sip3, test)
 		bool ok;
 
 		ok = csip_find_uri(&uris[i].orig, &pre, &host, &port, &post);
+
+		if (!ok) {
+			pre = uris[i].orig;
+			host.len = 0;
+			port.len = 0;
+			post.len = 0;
+		}
 
 		dp_test_fail_unless(uris[i].ok == ok, "\"%*.*s\" Expected %u, got %u",
 				    uris[i].orig.len, uris[i].orig.len, uris[i].orig.buf,
@@ -396,6 +403,13 @@ DP_START_TEST(sip4, test)
 		char str2[70];
 
 		ok = csip_find_uri(&uris[i].orig, &pre, &host, &port, &post);
+
+		if (!ok) {
+			pre = uris[i].orig;
+			host.len = 0;
+			port.len = 0;
+			post.len = 0;
+		}
 
 		dp_test_fail_unless(uris[i].ok == ok, "\"%*.*s\" Expected %u, got %u",
 				    uris[i].orig.len, uris[i].orig.len, uris[i].orig.buf,
