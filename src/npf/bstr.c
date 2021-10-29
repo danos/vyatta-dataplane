@@ -572,6 +572,41 @@ int bstr_find_term_offs(struct bstr const *parent, uint8_t terminator, uint32_t 
 	return _bstr_find_term(parent, terminator, offs);
 }
 
+enum bstr_find_wsp {
+	WSP,
+	NON_WSP,
+};
+
+/* Search for next WSP or non-WSP starting at an offset */
+static inline int _bstr_find_next_wsp_or_nwsp(struct bstr const *bs,
+					      uint32_t offs, enum bstr_find_wsp type)
+{
+	int const len = bs->len;
+	uint8_t *p;
+	int i;
+
+	if (offs >= (uint32_t)len)
+		return -1;
+
+	for (i = offs, p = bs->buf + offs; i < len; i++, p++)
+		if ((type == NON_WSP) ^ ascii_wsp(*p))
+			return i;
+
+	return -1;
+}
+
+/* Find next whitespace character in a string */
+int bstr_find_next_wsp(struct bstr const *bs, uint32_t offs)
+{
+	return _bstr_find_next_wsp_or_nwsp(bs, offs, WSP);
+}
+
+/* Find next non-whitespace character in a string */
+int bstr_find_next_non_wsp(struct bstr const *bs, uint32_t offs)
+{
+	return _bstr_find_next_wsp_or_nwsp(bs, offs, NON_WSP);
+}
+
 /*
  * Strip whitespace from the beginning (ltrim), end (rtrim), or both side
  * (trim) of a string.
