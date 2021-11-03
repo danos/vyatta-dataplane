@@ -1,9 +1,0 @@
-#! /bin/sh
-#
-# Copyright (c) 2019-2021 AT&T Intellectual Property.
-# All rights reserved.
-#
-# SPDX-License-Identifier: LGPL-2.1-only
-#
-
-/opt/vyatta/bin/vyatta-platform-util --configure-dataplane /run/dataplane/platform.conf

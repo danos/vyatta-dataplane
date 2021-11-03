@@ -14,7 +14,7 @@ Before=vyatta-sfpd.service vyatta-dataplane.service
 
 [Service]
 Type=oneshot
-ExecStart=/lib/vplane/vplane-platform-cfg
+ExecStart=/opt/vyatta/bin/vyatta-platform-util --configure-dataplane /run/dataplane/platform.conf
 
 [Install]
 WantedBy=config-loaded.target
