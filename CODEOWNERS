@@ -6,11 +6,11 @@
 # Do not use @user, @@group or @org/team syntax as these are either Github or Bitbucket specific
 # Use only emails addresses
 
-/src/npf_shim.* ian.wilson@intl.att.com paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
-/src/npf/ ian.wilson@intl.att.com paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
-/src/npf/app_group/ paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
-/src/npf/dpi/ paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
+/src/npf_shim.* iwilson@mail.eng.vyatta.net paitken@mail.eng.vyatta.net dfawcus+atlassian@mail.eng.vyatta.net gsheare@mail.eng.vyatta.net
+/src/npf/ iwilson@mail.eng.vyatta.net paitken@mail.eng.vyatta.net dfawcus+atlassian@mail.eng.vyatta.net gsheare@mail.eng.vyatta.net
+/src/npf/app_group/ paitken@mail.eng.vyatta.net dfawcus+atlassian@mail.eng.vyatta.net gsheare@mail.eng.vyatta.net
+/src/npf/dpi/ paitken@mail.eng.vyatta.net dfawcus+atlassian@mail.eng.vyatta.net gsheare@mail.eng.vyatta.net
 
-src/*qos* aroberts@vyatta.att-mail.com adewar@vyatta.att-mail.com ag474u@vyatta.att-mail.com
+/src/qos* aroberts@mail.eng.vyatta.net adewar@mail.eng.vyatta.net
 
-/src/session/ ian.wilson@intl.att.com paitken@vyatta.att-mail.com dfawcus+atlassian@vyatta.att-mail.com gsheare@vyatta.att-mail.com
+/src/session/ iwilson@mail.eng.vyatta.net paitken@mail.eng.vyatta.net dfawcus+atlassian@mail.eng.vyatta.net gsheare@mail.eng.vyatta.net
