@@ -31,18 +31,27 @@ struct csip_line {
 };
 
 /*
- * sdp_index is index into array of the first sdp message line, if present.
- * If there is no sdp part then it is set to >= 'capacity'.
+ * Meta data for SIP message line overlay
  */
 struct csip_lines_meta {
 	uint32_t capacity;
-	uint32_t used;
-	uint32_t sdp_index;
+
+	/* Index of first and last SIP lines */
+	uint32_t sip_first;
+	uint32_t sip_last;
+
+	/* Index of first and last SDP lines */
+	uint32_t sdp_first;
+	uint32_t sdp_last;
 
 	/* index to first occurrence of each SIP line type */
 	uint32_t sip_index[SIP_HDR_MAX];
 };
 
+/*
+ * Array of lines.  Each line is a bstr string containing a SIP or SDP message
+ * header line.
+ */
 struct csip_lines {
 	struct csip_lines_meta m;
 	struct csip_line lines[];

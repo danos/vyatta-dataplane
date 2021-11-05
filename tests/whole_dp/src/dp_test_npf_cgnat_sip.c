@@ -466,7 +466,7 @@ static void sip_split_and_classify(struct bstr *msg, struct csip_lines *sip_line
 	/*
 	 * Classify the SIP lines
 	 */
-	for (i = 1; i < sip_lines->m.sdp_index - 1; i++) {
+	for (i = sip_lines->m.sip_first; i <= sip_lines->m.sip_last; i++) {
 		ok = csip_classify_sip(sip_lines, i);
 		dp_test_fail_unless(ok, "%s: Failed to classify SIP line %u", name, i);
 	}
@@ -474,7 +474,7 @@ static void sip_split_and_classify(struct bstr *msg, struct csip_lines *sip_line
 	/*
 	 * Classify the SDP lines
 	 */
-	for (i = sip_lines->m.sdp_index; i < sip_lines->m.used; i++) {
+	for (i = sip_lines->m.sdp_first; i <= sip_lines->m.sdp_last; i++) {
 		ok = csip_classify_sdp(sip_lines, i);
 		dp_test_fail_unless(ok, "%s: Failed to classify SDP line %u", name, i);
 	}
@@ -561,7 +561,6 @@ DP_START_TEST(sip5, test)
 		struct csip_line arr[SIP_BSTR_SZ];
 	} line_array;
 
-	line_array.meta.used = 0;
 	line_array.meta.capacity = ARRAY_SIZE(line_array.arr);
 
 	struct csip_lines *sip_lines = (struct csip_lines *)&line_array;
@@ -596,11 +595,21 @@ DP_START_TEST(sip5, test)
 	ok = csip_split_lines(&orig, sip_lines);
 	dp_test_fail_unless(ok, "Failed to split lines");
 
-	dp_test_fail_unless(sip_lines->m.used == 22,
-			    "Expected 22 lines, got %u", sip_lines->m.used);
+	dp_test_fail_unless(sip_lines->m.sip_first == 1,
+			    "SIP first, expected 1 got %u",
+			    sip_lines->m.sip_first);
 
-	dp_test_fail_unless(sip_lines->m.sdp_index == 14,
-			    "SDP index, expected 14 got %u", sip_lines->m.sdp_index);
+	dp_test_fail_unless(sip_lines->m.sip_last == 12,
+			    "SIP last, expected 12 got %u",
+			    sip_lines->m.sip_last);
+
+	dp_test_fail_unless(sip_lines->m.sdp_first == 14,
+			    "SDP first, expected 14 got %u",
+			    sip_lines->m.sdp_first);
+
+	dp_test_fail_unless(sip_lines->m.sdp_last == 21,
+			    "SDP last, expected 21 got %u",
+			    sip_lines->m.sdp_last);
 
 	/* Check a selection of lines */
 	dp_test_fail_unless(sip_lines->lines[1].type == SIP_LINE_SIP,
@@ -621,7 +630,7 @@ DP_START_TEST(sip5, test)
 
 	/* Classify the SIP lines */
 
-	for (i = 1; i < sip_lines->m.sdp_index - 1; i++) {
+	for (i = sip_lines->m.sip_first; i <= sip_lines->m.sip_last - 1; i++) {
 		ok = csip_classify_sip(sip_lines, i);
 		dp_test_fail_unless(ok, "Failed to classify SIP line %u", i);
 	}
@@ -645,7 +654,7 @@ DP_START_TEST(sip5, test)
 
 	/* Classify the SDP lines */
 
-	for (i = sip_lines->m.sdp_index; i < sip_lines->m.used; i++) {
+	for (i = sip_lines->m.sdp_first; i <= sip_lines->m.sdp_last; i++) {
 		ok = csip_classify_sdp(sip_lines, i);
 		dp_test_fail_unless(ok, "Failed to classify SDP line %u", i);
 	}
@@ -676,7 +685,6 @@ DP_START_TEST(sip6, test)
 		struct csip_line arr[SIP_BSTR_SZ];
 	} line_array;
 
-	line_array.meta.used = 0;
 	line_array.meta.capacity = ARRAY_SIZE(line_array.arr);
 
 	struct csip_lines *sip_lines = (struct csip_lines *)&line_array;
@@ -710,8 +718,21 @@ DP_START_TEST(sip6, test)
 	 */
 	sip_split_and_classify(&orig, sip_lines, "sip6");
 
-	dp_test_fail_unless(sip_lines->m.used == 22,
-			    "Expected 22 lines, got %u", sip_lines->m.used);
+	dp_test_fail_unless(sip_lines->m.sip_first == 1,
+			    "SIP first, expected 1 got %u",
+			    sip_lines->m.sip_first);
+
+	dp_test_fail_unless(sip_lines->m.sip_last == 12,
+			    "SIP last, expected 12 got %u",
+			    sip_lines->m.sip_last);
+
+	dp_test_fail_unless(sip_lines->m.sdp_first == 14,
+			    "SDP first, expected 14 got %u",
+			    sip_lines->m.sdp_first);
+
+	dp_test_fail_unless(sip_lines->m.sdp_last == 21,
+			    "SDP last, expected 21 got %u",
+			    sip_lines->m.sdp_last);
 
 	dp_test_fail_unless(sip_lines->lines[3].type == SIP_LINE_SIP,
 			    "Line 3, expected SIP");
@@ -732,7 +753,6 @@ DP_START_TEST(sip6, test)
 	struct bstr taddr = BSTR_K("30.30.30.2");
 	struct bstr tport = BSTR_K("1024");
 	struct csip_line *lines = sip_lines->lines;
-	uint32_t nlines = sip_lines->m.used;
 	char new_buf[2000];
 	struct bstr new;
 
@@ -740,7 +760,10 @@ DP_START_TEST(sip6, test)
 	ok = bstr_attach_unmanaged(&new, new_buf, 0, sizeof(new_buf));
 	dp_test_fail_unless(ok, "Failed to create bstr 'new'");
 
-	for (i = 0; i < nlines; i++) {
+	/*
+	 * For all lines (initial line, SIP lines and SDP lines)
+	 */
+	for (i = 0; i <= sip_lines->m.sdp_last; i++) {
 
 		/* 'From' header line? */
 		if (sip_lines->lines[i].type == SIP_LINE_SIP &&

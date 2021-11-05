@@ -155,8 +155,11 @@ bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
 	/* Allow for an empty line at end of array */
 	max_capacity = sip_lines->m.capacity - 1;
 
-	/* sdp_index >= m.capacity means there is no SDP part */
-	sip_lines->m.sdp_index = sip_lines->m.capacity;
+	/* These can never be zero if a SIP or SDP part is present */
+	sip_lines->m.sip_first = 0;
+	sip_lines->m.sip_last = 0;
+	sip_lines->m.sdp_first = 0;
+	sip_lines->m.sdp_last = 0;
 
 	memset(sip_lines->m.sip_index, 0, sizeof(sip_lines->m.sip_index));
 
@@ -177,7 +180,6 @@ bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
 	for (i = 1, head = tail; i < max_capacity; i++, head = tail) {
 		if (!csip_get_hline(&head, &lines[i].b, &tail)) {
 			/* End of input.  Return success. */
-			sip_lines->m.used = i;
 			lines[i].b = BSTR_INIT;
 			lines[i].type = SIP_LINE_NONE;
 			return true;
@@ -185,23 +187,34 @@ bool csip_split_lines(struct bstr const *msg, struct csip_lines *sip_lines)
 
 		/* Separating line between SIP and SDP parts? */
 		if (lines[i].b.len == SIP_SEPARATOR_SZ) {
-			sip_lines->m.sdp_index = i + 1;
 			lines[i].type = SIP_LINE_SEPARATOR;
 			break;
 		}
 		lines[i].type = SIP_LINE_SIP;
+
+		if (sip_lines->m.sip_first == 0)
+			sip_lines->m.sip_first = i;
+
+		sip_lines->m.sip_last = i;
 	}
+
+	/* We always expect the SIP lines to start on line 1 */
+	assert(sip_lines->m.sip_first == 1);
 
 	/* SDP header lines */
 	for (i++, head = tail; i < max_capacity; i++, head = tail) {
 		if (!csip_get_line(&head, &lines[i].b, &tail)) {
 			/* End of input.  Return success. */
-			sip_lines->m.used = i;
 			lines[i].b = BSTR_INIT;
 			lines[i].type = SIP_LINE_NONE;
 			return true;
 		}
 		lines[i].type = SIP_LINE_SDP;
+
+		if (sip_lines->m.sdp_first == 0)
+			sip_lines->m.sdp_first = i;
+
+		sip_lines->m.sdp_last = i;
 	}
 
 	/* out of space */
