@@ -2044,11 +2044,11 @@ gre_tunnel_encap(struct ifnet *input_ifp, struct ifnet *tunnel_ifp,
 	uint16_t ether_type;
 
 	sc = rcu_dereference(tunnel_ifp->if_softc);
-	if (!sc || !sc->scg_gre_info) {
+	greinfo = sc ? sc->scg_gre_info : NULL;
+	if (!greinfo || !is_local_ipv4(greinfo->t_vrfid, greinfo->iph.saddr)) {
 		if_incr_oerror(tunnel_ifp);
 		goto drop;
 	}
-	greinfo = sc->scg_gre_info;
 
 	if (sc->scg_multipoint && nxt_ip) {
 		struct mgre_rt_info *rt_info;
@@ -2296,12 +2296,11 @@ gre6_tunnel_encap(struct ifnet *tunnel_ifp,
 	vrfid_t t_vrfid;
 
 	sc = rcu_dereference(tunnel_ifp->if_softc);
-	if (!sc || !sc->scg_gre_info) {
+	greinfo = sc ? sc->scg_gre_info : NULL;
+	if (!greinfo || !is_local_ipv6(greinfo->t_vrfid, &greinfo->iph6.ip6_src)) {
 		if_incr_oerror(tunnel_ifp);
 		goto drop;
 	}
-	greinfo = sc->scg_gre_info;
-
 	outer_ip = &greinfo->iph6;
 	t_vrfid = greinfo->t_vrfid;
 
