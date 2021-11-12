@@ -1489,41 +1489,43 @@ get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info
 	jsonw_start_object(wr);
 	cursor = SFF_8472_RX_POWER4;
 	for (i = 0; i < SFP_CALIB_CONST_RX_PWR_CNT; i++) {
-		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
-				cursor, SFP_CALIB_CONST_RX_PWR_SIZE,
-				xbuf);
-		snprintf(json_field_name, 30, "%2d: rx_pwr_%d",
-			 cursor, SFP_CALIB_CONST_MAX - i);
-		snprintf(json_str, 40, "%02x %02x %02x %02x",
-			 xbuf[0], xbuf[1], xbuf[2], xbuf[3]);
-		jsonw_string_field(wr, json_field_name, json_str);
-
+		if (get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+				    cursor, SFP_CALIB_CONST_RX_PWR_SIZE,
+				    xbuf) == 0) {
+			snprintf(json_field_name, 30, "%2d: rx_pwr_%d",
+				cursor, SFP_CALIB_CONST_MAX - i);
+			snprintf(json_str, 40, "%02x %02x %02x %02x",
+				xbuf[0], xbuf[1], xbuf[2], xbuf[3]);
+			jsonw_string_field(wr, json_field_name, json_str);
+		}
 		cursor += SFP_CALIB_CONST_RX_PWR_SIZE;
 	}
 
 	cursor = SFF_8472_TX_I_SLOPE;
 	for (i = 0; i < SFP_CALIB_CONST_MAX; i++) {
-		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
-				cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
-				xbuf);
+		if (get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+				    cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
+				    xbuf) == 0) {
+			snprintf(json_field_name, 30, "%02d: %s_slope",
+					cursor, sfp_calib_const_strs[i]);
+			snprintf(json_str, 40, "%02x %02x", xbuf[0], xbuf[1]);
+			jsonw_string_field(wr, json_field_name, json_str);
+		}
 
-		snprintf(json_field_name, 30, "%02d: %s_slope",
-			 cursor, sfp_calib_const_strs[i]);
-		snprintf(json_str, 40, "%02x %02x", xbuf[0], xbuf[1]);
-		jsonw_string_field(wr, json_field_name, json_str);
+
 
 		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
 
-		get_eeprom_data(eeprom_info, SFF_8472_DIAG,
-				cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
-				(uint8_t *)&offset);
-
-		snprintf(json_field_name, 30, "%02d: %s_offset",
-			 cursor, sfp_calib_const_strs[i]);
-		snprintf(json_str, 40, "%02x %02x", ((uint8_t *)&offset)[0],
-			 ((uint8_t *)&offset)[1]);
-		jsonw_string_field(wr, json_field_name, json_str);
-
+		if (get_eeprom_data(eeprom_info, SFF_8472_DIAG,
+				    cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
+				    (uint8_t *)&offset) == 0) {
+			snprintf(json_field_name, 30, "%02d: %s_offset",
+				cursor, sfp_calib_const_strs[i]);
+			snprintf(json_str, 40, "%02x %02x",
+				 ((uint8_t *)&offset)[0],
+				 ((uint8_t *)&offset)[1]);
+			jsonw_string_field(wr, json_field_name, json_str);
+		}
 		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
 	}
 	jsonw_end_object(wr);
@@ -2139,11 +2141,10 @@ sfp_has_ddm(const struct rte_dev_eeprom_info *eeprom_info)
 {
 	uint8_t diag_type;
 
-	get_eeprom_data(eeprom_info, SFF_8472_BASE, SFF_8472_DIAG_TYPE,
-			1, &diag_type);
-
-	if (diag_type & SFF_8472_DDM_DONE)
-		return true;
+	if (get_eeprom_data(eeprom_info, SFF_8472_BASE, SFF_8472_DIAG_TYPE,
+			1, &diag_type) == 0)
+		if (diag_type & SFF_8472_DDM_DONE)
+			return true;
 	return false;
 }
 
