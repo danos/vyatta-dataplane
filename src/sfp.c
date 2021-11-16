@@ -1456,7 +1456,7 @@ get_sfp_calibration_constants(const struct rte_dev_eeprom_info *eeprom_info,
 					 (xbuf[2] << 8) | xbuf[3]);
 
 		// Populate in reverse to conform to SFF-8472 calibration constants table
-		c_consts->rx_pwr[SFP_CALIB_CONST_MAX - i] = rx_pwr;
+		c_consts->rx_pwr[SFP_CALIB_CONST_RX_PWR_CNT - 1 - i] = rx_pwr;
 		cursor += SFP_CALIB_CONST_RX_PWR_SIZE;
 	}
 
@@ -1496,7 +1496,7 @@ get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info
 				    xbuf) == 0) {
 			snprintf(json_field_name, sizeof(json_field_name),
 				 "%2d: rx_pwr_%d",
-				 cursor, SFP_CALIB_CONST_MAX - i);
+				 cursor, SFP_CALIB_CONST_RX_PWR_CNT - 1 - i);
 			snprintf(json_str, sizeof(json_str),
 				 "%02x %02x %02x %02x",
 				 xbuf[0], xbuf[1], xbuf[2], xbuf[3]);
