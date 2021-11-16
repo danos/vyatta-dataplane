@@ -1185,14 +1185,15 @@ __convert_sff_temp(const uint8_t *xbuf,
 	double d;
 	const struct slope_off *so;
 
-	temp = (xbuf[0] > 0x7f) ? xbuf[0] - (0xff + 1) : xbuf[0];
-
-	d = (double)temp + (double)xbuf[1] / 256;
+	temp = (xbuf[0] << 8) | xbuf[1];
+	d = (double)temp;
 
 	if (c_consts) {
 		so = &c_consts->slope_offs[SFP_CALIB_CONST_TEMPERATURE];
 		d = (so->slope * d) + so->offset;
 	}
+
+	d /= 256;
 
 	return d;
 }
