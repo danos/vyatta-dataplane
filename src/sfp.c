@@ -7,6 +7,7 @@
  *   - checkpatch fixup
  */
 /*-
+ * Copyright (c) 2021, Ciena Corporation, All Rights Reserved.
  * Copyright (c) 2018-2021, AT&T Intellectual Property. All rights reserved.
  * Copyright (c) 2014 Alexander V. Chernikov. All rights reserved.
  *
@@ -1481,7 +1482,7 @@ static void
 get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info,
 				   json_writer_t *wr)
 {
-	uint16_t i, offset, cursor;
+	uint16_t i, cursor;
 	uint8_t xbuf[4];
 	char json_field_name[30], json_str[40];
 
@@ -1492,10 +1493,12 @@ get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info
 		if (get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 				    cursor, SFP_CALIB_CONST_RX_PWR_SIZE,
 				    xbuf) == 0) {
-			snprintf(json_field_name, 30, "%2d: rx_pwr_%d",
-				cursor, SFP_CALIB_CONST_MAX - i);
-			snprintf(json_str, 40, "%02x %02x %02x %02x",
-				xbuf[0], xbuf[1], xbuf[2], xbuf[3]);
+			snprintf(json_field_name, sizeof(json_field_name),
+				 "%2d: rx_pwr_%d",
+				 cursor, SFP_CALIB_CONST_MAX - i);
+			snprintf(json_str, sizeof(json_str),
+				 "%02x %02x %02x %02x",
+				 xbuf[0], xbuf[1], xbuf[2], xbuf[3]);
 			jsonw_string_field(wr, json_field_name, json_str);
 		}
 		cursor += SFP_CALIB_CONST_RX_PWR_SIZE;
@@ -1506,24 +1509,24 @@ get_sfp_calibration_constants_json(const struct rte_dev_eeprom_info *eeprom_info
 		if (get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 				    cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
 				    xbuf) == 0) {
-			snprintf(json_field_name, 30, "%02d: %s_slope",
-					cursor, sfp_calib_const_strs[i]);
-			snprintf(json_str, 40, "%02x %02x", xbuf[0], xbuf[1]);
+			snprintf(json_field_name, sizeof(json_field_name),
+				 "%02d: %s_slope",
+				 cursor, sfp_calib_const_strs[i]);
+			snprintf(json_str, sizeof(json_str),
+				 "%02x %02x", xbuf[0], xbuf[1]);
 			jsonw_string_field(wr, json_field_name, json_str);
 		}
-
-
 
 		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
 
 		if (get_eeprom_data(eeprom_info, SFF_8472_DIAG,
 				    cursor, SFP_CALIB_CONST_SL_OFF_SIZE,
-				    (uint8_t *)&offset) == 0) {
-			snprintf(json_field_name, 30, "%02d: %s_offset",
-				cursor, sfp_calib_const_strs[i]);
-			snprintf(json_str, 40, "%02x %02x",
-				 ((uint8_t *)&offset)[0],
-				 ((uint8_t *)&offset)[1]);
+				    xbuf) == 0) {
+			snprintf(json_field_name, sizeof(json_field_name),
+				 "%02d: %s_offset",
+				 cursor, sfp_calib_const_strs[i]);
+			snprintf(json_str, sizeof(json_str), "%02x %02x",
+				 xbuf[0], xbuf[1]);
 			jsonw_string_field(wr, json_field_name, json_str);
 		}
 		cursor += SFP_CALIB_CONST_SL_OFF_SIZE;
