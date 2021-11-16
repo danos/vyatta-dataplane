@@ -1452,8 +1452,8 @@ get_sfp_calibration_constants(const struct rte_dev_eeprom_info *eeprom_info,
 		rx_pwr.ieee.negative = (xbuf[0] & 0x80) >> 7;
 		rx_pwr.ieee.exponent = (((xbuf[0] & 0x7f) << 1) |
 					((xbuf[1] & 0x80) >> 7));
-		rx_pwr.ieee.mantissa += (((xbuf[1] & 0x7f) << 16) |
-					 (xbuf[2] << 8) | xbuf[3]);
+		rx_pwr.ieee.mantissa = (((xbuf[1] & 0x7f) << 16) |
+					(xbuf[2] << 8) | xbuf[3]);
 
 		// Populate in reverse to conform to SFF-8472 calibration constants table
 		c_consts->rx_pwr[SFP_CALIB_CONST_RX_PWR_CNT - 1 - i] = rx_pwr;
