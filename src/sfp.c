@@ -1258,8 +1258,7 @@ __convert_sff_power(const uint8_t *xbuf, bool rx,
 			mW = (c_consts->rx_pwr[0].f +
 			      c_consts->rx_pwr[1].f * tmp_mW);
 			for (i = 2; i < SFP_CALIB_CONST_RX_PWR_CNT; i++)
-				mW += c_consts->rx_pwr[i].f * tmp_mW *
-					pow(10, i);
+				mW += c_consts->rx_pwr[i].f * pow(tmp_mW, i);
 		} else {
 			const struct slope_off *so =
 				&c_consts->slope_offs[SFP_CALIB_CONST_TX_PWR];
