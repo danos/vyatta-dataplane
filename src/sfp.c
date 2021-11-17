@@ -1211,7 +1211,7 @@ convert_sff_temp(json_writer_t *wr, const char *field_name,
 
 /*
  * Retrieves supplied voltage (SFF-8472, SFF-8436).
- * 16-bit usigned value, treated as range 0..+6.55 Volts
+ * 16-bit unsigned value, treated as range 0..+6.55 Volts
  */
 static double
 __convert_sff_voltage(const uint8_t *xbuf,
@@ -1226,6 +1226,9 @@ __convert_sff_voltage(const uint8_t *xbuf,
 		so = &c_consts->slope_offs[SFP_CALIB_CONST_VOLTAGE];
 		d = (so->slope * d) + so->offset;
 	}
+
+	d /= 10000;
+
 	return d;
 }
 
@@ -1237,7 +1240,7 @@ convert_sff_voltage(json_writer_t *wr, const char *field_name,
 	double d;
 
 	d = __convert_sff_voltage(xbuf, c_consts);
-	jsonw_float_field(wr, field_name, d / 10000);
+	jsonw_float_field(wr, field_name, d);
 }
 
 /*
@@ -2362,7 +2365,7 @@ get_converted_string(enum SFF_8472_AW_FLAG flag, uint8_t *xbuf,
 	case SFF_8472_AW_VCC_HIGH:
 	case SFF_8472_AW_VCC_LOW:
 		converted = __convert_sff_voltage(xbuf, c_consts);
-		snprintf(str, string_size, "%0.4f V", converted/10000);
+		snprintf(str, string_size, "%0.4f V", converted);
 
 		break;
 
@@ -2575,7 +2578,7 @@ qsfp_get_voltage(struct xcvr_info *xcvr_info, uint16_t offset,
 	*unit = "V";
 	get_eeprom_data(&xcvr_info->eeprom_info, SFF_8436_BASE,
 			offset, sz_xbuf, xbuf);
-	return __convert_sff_voltage(xbuf, NULL)/10000;
+	return __convert_sff_voltage(xbuf, NULL);
 }
 
 static double
