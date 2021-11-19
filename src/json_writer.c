@@ -4,6 +4,7 @@
  * This takes care of the annoying bits of JSON syntax like the commas
  * after elements
  *
+ * Copyright (c) 2021, Ciena Corporation. All rights reserved.
  * Copyright (c) 2017-2019, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -212,6 +213,11 @@ void jsonw_float(json_writer_t *self, double num)
 	jsonw_printf(self, "%g", num);
 }
 
+void jsonw_float_prec(json_writer_t *self, unsigned int prec, double num)
+{
+	jsonw_printf(self, "\"%.*f\"", prec, num);
+}
+
 void jsonw_uint(json_writer_t *self, uint64_t num)
 {
 	jsonw_printf(self, "%"PRIu64, num);
@@ -239,6 +245,13 @@ void jsonw_float_field(json_writer_t *self, const char *prop, double num)
 {
 	jsonw_name(self, prop);
 	jsonw_float(self, num);
+}
+
+void jsonw_float_prec_field(json_writer_t *self, const char *prop,
+			    unsigned int prec, double num)
+{
+	jsonw_name(self, prop);
+	jsonw_float_prec(self, prec, num);
 }
 
 void jsonw_uint_field(json_writer_t *self, const char *prop, uint64_t num)

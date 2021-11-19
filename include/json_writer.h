@@ -4,6 +4,7 @@
  * This takes care of the annoying bits of JSON syntax like the commas
  * after elements
  *
+ * Copyright (c) 2021, Ciena Corporation. All rights reserved.
  * Copyright (c) 2017-2020, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2016 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -37,6 +38,7 @@ void jsonw_name(json_writer_t *self, const char *name);
 void jsonw_string(json_writer_t *self, const char *value);
 void jsonw_bool(json_writer_t *self, bool value);
 void jsonw_float(json_writer_t *self, double number);
+void jsonw_float_prec(json_writer_t *self, unsigned int prec, double num);
 void jsonw_uint(json_writer_t *self, uint64_t number);
 void jsonw_int(json_writer_t *self, int64_t number);
 void jsonw_null(json_writer_t *self);
@@ -45,6 +47,8 @@ void jsonw_null(json_writer_t *self);
 void jsonw_string_field(json_writer_t *self, const char *prop, const char *val);
 void jsonw_bool_field(json_writer_t *self, const char *prop, bool val);
 void jsonw_float_field(json_writer_t *self, const char *prop, double num);
+void jsonw_float_prec_field(json_writer_t *self, const char *prop,
+			    unsigned int prec, double num);
 void jsonw_uint_field(json_writer_t *self, const char *prop, uint64_t num);
 void jsonw_int_field(json_writer_t *self, const char *prop, int64_t num);
 void jsonw_null_field(json_writer_t *self, const char *prop);
