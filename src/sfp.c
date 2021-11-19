@@ -1256,7 +1256,7 @@ convert_sff_temp(json_writer_t *wr, const char *field_name,
 	double d;
 
 	d = __convert_sff_temp(xbuf, c_consts);
-	jsonw_float_field(wr, field_name, d);
+	jsonw_float_prec_field(wr, field_name, 2, d);
 }
 
 /*
@@ -1283,7 +1283,7 @@ convert_sff_voltage(json_writer_t *wr, const char *field_name,
 	double volts;
 
 	volts = __convert_sff_voltage(xbuf, c_consts);
-	jsonw_float_field(wr, field_name, volts);
+	jsonw_float_prec_field(wr, field_name, 2, volts);
 }
 
 /*
@@ -1315,6 +1315,13 @@ convert_sff_power(json_writer_t *wr, const char *field_name,
 	double mW;
 
 	mW = __convert_sff_power(xbuf, rx, c_consts);
+	/*
+	 * NB: this does not need to be returned with a specific
+	 * precision, as the value returned is in milliwatts, and
+	 * is then converted by an RPC script into dBM. At that
+	 * point it ensures it has the required precision and
+	 * is presented as a string.
+	 */
 	jsonw_float_field(wr, field_name, mW);
 }
 
@@ -1337,7 +1344,7 @@ convert_sff_bias(json_writer_t *wr, const char *field_name,
 	double mA;
 
 	mA = __convert_sff_bias(xbuf, c_consts);
-	jsonw_float_field(wr, field_name, mA);
+	jsonw_float_prec_field(wr, field_name, 2, mA);
 }
 
 static void
