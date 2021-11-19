@@ -1166,36 +1166,86 @@ print_qsfp_vendor(const struct rte_dev_eeprom_info *eeprom_info,
 	print_qsfp_vendor_date(eeprom_info, wr);
 }
 
+static int16_t
+calibrate_sff_int16(int16_t value,
+		    const struct sfp_calibration_constants *c_consts,
+		    enum sfp_calib_const_type const_type)
+{
+	if (!c_consts)	/* internally calibrated */
+		return value;
+
+	const struct slope_off *so = &c_consts->slope_offs[const_type];
+	double d = (so->slope * value) + so->offset;
+
+	/* Ensure within range of SHRT_MIN to SHRT_MAX */
+	if (d < SHRT_MIN)
+		d = SHRT_MIN;
+	else if (d > SHRT_MAX)
+		d = SHRT_MAX;
+
+	return (int16_t)round(d);
+}
+
+static uint16_t
+calibrate_sff_uint16(uint16_t value,
+		     const struct sfp_calibration_constants *c_consts,
+		     enum sfp_calib_const_type const_type)
+{
+	if (!c_consts)	/* internally calibrated */
+		return value;
+
+	const struct slope_off *so = &c_consts->slope_offs[const_type];
+	double d = (so->slope * value) + so->offset;
+
+	/* Ensure within range of 0 to USHRT_MAX */
+	if (d < 0)
+		d = 0;
+	else if (d > USHRT_MAX)
+		d = USHRT_MAX;
+
+	return (uint16_t)round(d);
+}
+
+static uint16_t
+calibrate_sff_rx_pwr(uint16_t raw_rx_pwr,
+		     const struct sfp_calibration_constants *c_consts)
+{
+	if (!c_consts)	/* internally calibrated */
+		return raw_rx_pwr;
+
+	int i;
+	double d = 0;
+
+	for (i = 0; i < SFP_CALIB_CONST_RX_PWR_CNT; i++)
+		d += c_consts->rx_pwr[i].f * pow(raw_rx_pwr, i);
+
+	/* Ensure within range of 0 to USHRT_MAX */
+	if (d < 0)
+		d = 0;
+	else if (d > USHRT_MAX)
+		d = USHRT_MAX;
+
+	return (uint16_t)round(d);
+}
+
 /*
  * Converts internal temperature (SFF-8472, SFF-8436)
- * 16-bit unsigned value to human-readable representation:
+ * 16-bit signed value to human-readable representation:
  *
- * Internally measured Module temperature are represented
+ * Internally measured module temperature is represented
  * as a 16-bit signed twos complement value in increments of
- * 1/256 degrees Celsius, yielding a total range of –128C to +128C
- * that is considered valid between –40 and +125C.
- *
+ * 1/256 degrees Celsius, yielding a total range of -128C to +128C.
  */
 
 static double
 __convert_sff_temp(const uint8_t *xbuf,
 		   const struct sfp_calibration_constants *c_consts)
 {
-	int16_t temp;
-	double d;
-	const struct slope_off *so;
+	int16_t temp = (xbuf[0] << 8) | xbuf[1];
 
-	temp = (xbuf[0] << 8) | xbuf[1];
-	d = (double)temp;
+	temp = calibrate_sff_int16(temp, c_consts, SFP_CALIB_CONST_TEMPERATURE);
 
-	if (c_consts) {
-		so = &c_consts->slope_offs[SFP_CALIB_CONST_TEMPERATURE];
-		d = (so->slope * d) + so->offset;
-	}
-
-	d /= 256;
-
-	return d;
+	return (double)temp / 256;
 }
 
 static void
@@ -1217,19 +1267,12 @@ static double
 __convert_sff_voltage(const uint8_t *xbuf,
 		      const struct sfp_calibration_constants *c_consts)
 {
-	double d;
-	const struct slope_off *so;
+	uint16_t voltage = (xbuf[0] << 8) | xbuf[1];
 
-	d = (double)((xbuf[0] << 8) | xbuf[1]);
+	voltage = calibrate_sff_uint16(voltage, c_consts,
+				       SFP_CALIB_CONST_VOLTAGE);
 
-	if (c_consts) {
-		so = &c_consts->slope_offs[SFP_CALIB_CONST_VOLTAGE];
-		d = (so->slope * d) + so->offset;
-	}
-
-	d /= 10000;
-
-	return d;
+	return (double)voltage / 10000;
 }
 
 static void
@@ -1237,10 +1280,10 @@ convert_sff_voltage(json_writer_t *wr, const char *field_name,
 		    const uint8_t *xbuf,
 		    const struct sfp_calibration_constants *c_consts)
 {
-	double d;
+	double volts;
 
-	d = __convert_sff_voltage(xbuf, c_consts);
-	jsonw_float_field(wr, field_name, d);
+	volts = __convert_sff_voltage(xbuf, c_consts);
+	jsonw_float_field(wr, field_name, volts);
 }
 
 /*
@@ -1251,27 +1294,17 @@ static double
 __convert_sff_power(const uint8_t *xbuf, bool rx,
 		    const struct sfp_calibration_constants *c_consts)
 {
-	double mW, tmp_mW;
-	int i;
+	uint16_t power;
 
-	tmp_mW = (xbuf[0] << 8) + xbuf[1];
+	power = (xbuf[0] << 8) + xbuf[1];
 
-	if (c_consts) {
-		if (rx) {
-			mW = (c_consts->rx_pwr[0].f +
-			      c_consts->rx_pwr[1].f * tmp_mW);
-			for (i = 2; i < SFP_CALIB_CONST_RX_PWR_CNT; i++)
-				mW += c_consts->rx_pwr[i].f * pow(tmp_mW, i);
-		} else {
-			const struct slope_off *so =
-				&c_consts->slope_offs[SFP_CALIB_CONST_TX_PWR];
+	if (rx)
+		power = calibrate_sff_rx_pwr(power, c_consts);
+	else
+		power = calibrate_sff_uint16(power, c_consts,
+					     SFP_CALIB_CONST_TX_PWR);
 
-			mW = (so->slope * tmp_mW) + so->offset;
-		}
-	} else
-		mW = tmp_mW;
-
-	return mW / 10000;
+	return (double)power / 10000;
 }
 
 static void
@@ -1289,18 +1322,11 @@ static double
 __convert_sff_bias(const uint8_t *xbuf,
 		   const struct sfp_calibration_constants *c_consts)
 {
-	double mA;
-	const struct slope_off *so;
+	uint16_t bias = (xbuf[0] << 8) + xbuf[1];
 
-	mA = (xbuf[0] << 8) + xbuf[1];
+	bias = calibrate_sff_uint16(bias, c_consts, SFP_CALIB_CONST_LASER_BIAS);
 
-	if (c_consts) {
-		so = &c_consts->slope_offs[SFP_CALIB_CONST_LASER_BIAS];
-		mA = (so->slope * mA) + so->offset;
-	}
-	mA /= 500;
-
-	return mA;
+	return (double)bias / 500;
 }
 
 static void
