@@ -1,3 +1,9 @@
+vyatta-dataplane (3.12.55.9) unstable; urgency=medium
+
+  * Validate GRE tunnel transport source IP
+
+ -- Thomas Kiely <tkiely@ciena.com>  Mon, 22 Nov 2021 10:46:53 +0000
+
 vyatta-dataplane (3.12.55.8) unstable; urgency=medium
 
   * Create new service to setup platform-specific dataplane parameters
