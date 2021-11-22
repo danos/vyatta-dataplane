@@ -1,3 +1,10 @@
+vyatta-dataplane (3.13.48.4) unstable; urgency=medium
+
+  [ ck407g ]
+  * Added device filtering by interface name
+
+ -- Srinivas Narayan <narayan@vyatta.att-mail.com>  Mon, 22 Nov 2021 10:17:52 +0000
+
 vyatta-dataplane (3.13.48.3) unstable; urgency=medium
 
   [ Thomas Kiely ]
