@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: LGPL-2.1-only
+# Copyright (c) 2021, Ciena Corporation. All rights reserved.
 # Copyright (c) 2020-2021, AT&T Intellectual Property. All rights reserved.
 
 internal_test_inc = include_directories(
@@ -63,6 +64,7 @@ check_tests = [
         'dp_test_crypto_policy.c',
         'dp_test_crypto_site_to_site.c',
         'dp_test_crypto_site_to_site_passthru.c',
+        'dp_test_driver_conf.c',
         'dp_test_esp.c',
         'dp_test_fails.c',
         'dp_test_gpc_pb.c',

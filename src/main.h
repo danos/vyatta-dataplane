@@ -1,4 +1,5 @@
 /*-
+ * Copyright (c) 2021, Ciena Corporation. All rights reserved.
  * Copyright (c) 2017-2021, AT&T Intellectual Property.  All rights reserved.
  * Copyright (c) 2011-2017 by Brocade Communications Systems, Inc.
  * All rights reserved.
@@ -182,5 +183,8 @@ int next_available_crypto_lcore(void);
 
 void enable_crypto_fwd(unsigned int lcore);
 void disable_crypto_fwd(unsigned int lcore);
+
+const struct rxtx_param *get_driver_param(const char *driver_name,
+					  uint32_t speed_capa);
 
 #endif /* MAIN_H */
