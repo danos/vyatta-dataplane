@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# Copyright (c) 2021, AT&T Intellectual Property.
-# All rights reserved.
+# Copyright (c) 2021, Ciena Corporation. All rights reserved.
+# Copyright (c) 2021, AT&T Intellectual Property. All rights reserved.
 #
 # SPDX-License-Identifier: LGPL-2.1-only
 #
@@ -96,7 +96,7 @@ fi
 # Ensure all files contain a copyright message with the current year.
 #
 YEAR=`date +%Y`
-copyright=`egrep -d skip -L "Copyright \(c) .*$YEAR,{,1} AT&T Intellectual Property" $check_files`
+copyright=`egrep -d skip -L "Copyright \(c) .*$YEAR,{,1} Ciena Corporation" $check_files`
 if [ -n "$copyright" ]; then
     echo -e "* Add or update the copyright message in these files:\n$copyright\n"
 fi
