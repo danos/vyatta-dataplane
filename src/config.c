@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2021, Ciena Corporation. All rights reserved.
  * Copyright (c) 2017-2021, AT&T Intellectual Property. All rights reserved.
  *
  * SPDX-License-Identifier: LGPL-2.1-only
@@ -528,7 +529,7 @@ static int parse_driver_entry(void *user, const char *section,
 
 	/* Find entry in table, add new one if required */
 	while (param && param->match) {
-		if (strcasestr(section, param->match)) {
+		if (strcasecmp(section, param->match) == 0) {
 			found = true;
 			break;
 		}
